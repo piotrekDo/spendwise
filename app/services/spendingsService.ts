@@ -19,12 +19,14 @@ export const getSpendingsInRange = async (startDate: string, endDate: string): P
   const query = `
     SELECT 
       e.id, e.amount, e.description, e.date, 
-      s.id AS subcategoryId, s.name AS subcategoryName, s.icon AS subcategoryIcon,
-      c.id AS categoryId, c.name AS categoryName, c.icon AS categoryIcon
+      s.id AS subcategoryId, s.name AS subcategoryName, ai1.name AS subcategoryIcon,
+      c.id AS categoryId, c.name AS categoryName, ai2.name AS categoryIcon
     FROM entries e
     JOIN subcategories s ON e.subcategoryId = s.id
+    JOIN app_icons ai1 ON s.iconId = ai1.id
     JOIN categories c ON s.categoryId = c.id
-    WHERE date BETWEEN ? AND ?
+    JOIN app_icons ai2 ON c.iconId = ai2.id
+    WHERE e.date BETWEEN ? AND ?
   `;
 
   const results = await db.getAllAsync(query, [startDate, endDate]);
@@ -35,9 +37,9 @@ export const getSelectedSubCategorySpendings = async (subcategoryId: number, sta
   const db = getDb();
   const query = `
     SELECT 
-      e.id, e.amount, e.description, e.date, 
+      e.id, e.amount, e.description, e.date
     FROM entries e
-    WHERE e.subcategoryId = ? AND (date BETWEEN ? AND ?)
+    WHERE e.subcategoryId = ? AND e.date BETWEEN ? AND ?
   `;
 
   const results = await db.getAllAsync(query, [subcategoryId, startDate, endDate]);
@@ -49,11 +51,13 @@ export const getSelectedCategorySpendings = async (categoryId: number, startDate
   const query = `
     SELECT 
       e.id, e.amount, e.description, e.date, 
-      s.id AS subcategoryId, s.name AS subcategoryName, s.icon AS subcategoryIcon,
-      c.id AS categoryId, c.name AS categoryName, c.icon AS categoryIcon
+      s.id AS subcategoryId, s.name AS subcategoryName, ai1.name AS subcategoryIcon,
+      c.id AS categoryId, c.name AS categoryName, ai2.name AS categoryIcon
     FROM entries e
     JOIN subcategories s ON e.subcategoryId = s.id
+    JOIN app_icons ai1 ON s.iconId = ai1.id
     JOIN categories c ON s.categoryId = c.id
+    JOIN app_icons ai2 ON c.iconId = ai2.id
     WHERE s.categoryId = ? AND e.date BETWEEN ? AND ?
   `;
 

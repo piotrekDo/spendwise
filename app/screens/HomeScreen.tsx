@@ -55,7 +55,7 @@ export const HomeScreen = () => {
 
   const getMonthDateRange = (year: number, month: number) => {
     const start = `${year}-${String(month).padStart(2, '0')}-01`;
-    const lastDay = new Date(year, month, 0).getDate(); // ← uwzględnia długość miesiąca
+    const lastDay = new Date(year, month, 0).getDate(); 
     const end = `${year}-${String(month).padStart(2, '0')}-${lastDay}`;
     return { start, end };
   };
