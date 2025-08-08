@@ -7,7 +7,7 @@ import { EditSchemeScreen } from '../screens/EditSchemeScreen';
 const Stack = createNativeStackNavigator();
 const AccountNavigator = () => (
   <Stack.Navigator>
-    <Stack.Screen name={routes.ACCOUNT} component={AccountScreen} />
+    <Stack.Screen name={routes.ACCOUNT_SCREEN} component={AccountScreen} />
     <Stack.Screen name={routes.ACCOUNT_EDIT_SCHEME} component={EditSchemeScreen} />
   </Stack.Navigator>
 );

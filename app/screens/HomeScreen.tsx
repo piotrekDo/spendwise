@@ -7,6 +7,7 @@ import { DisplayCategory, DisplaySubcategory } from '../model/Spendings';
 import { getCategorySkeleton } from '../services/categoriesService';
 import { getSelectedCategorySpendings, getSpendingsInRange, SpendingEntry } from '../services/spendingsService';
 import { CategoryDetailsModal } from '../components/CategoryDetailsModal';
+import { useFocusEffect } from '@react-navigation/native';
 
 const MONTHS = [
   'Styczeń',
@@ -55,14 +56,14 @@ export const HomeScreen = () => {
 
   const getMonthDateRange = (year: number, month: number) => {
     const start = `${year}-${String(month).padStart(2, '0')}-01`;
-    const lastDay = new Date(year, month, 0).getDate(); 
+    const lastDay = new Date(year, month, 0).getDate();
     const end = `${year}-${String(month).padStart(2, '0')}-${lastDay}`;
     return { start, end };
   };
 
   const loadData = async () => {
     const { start, end } = getMonthDateRange(currentYear, currentMonth + 1);
-    const spendings = await getSpendingsInRange(start, end);
+    const spendings: SpendingEntry[] = await getSpendingsInRange(start, end);
 
     const merged = skeleton.map(cat => {
       const updatedSub = cat.subcategories.map(sub => {
@@ -76,18 +77,17 @@ export const HomeScreen = () => {
     setData(merged);
   };
 
-  useEffect(() => {
+  useFocusEffect(() => {
     getCategorySkeleton().then(setSkeleton);
-  }, []);
+  });
 
   useEffect(() => {
     if (skeleton.length > 0) loadData();
   }, [monthOffset, skeleton]);
 
-  const incomeCategory = data.find(c => c.name === 'Przychód');
-  const saldo = incomeCategory
-    ? incomeCategory.sum - data.filter(c => c.name !== 'Przychód').reduce((acc, curr) => acc + curr.sum, 0)
-    : 0;
+  const positiveSum = data.filter(c => c.positive).reduce((acc, curr) => acc + curr.sum, 0);
+  const negativeSum = data.filter(c => !c.positive).reduce((acc, curr) => acc + curr.sum, 0);
+  const saldo = positiveSum - negativeSum;
 
   const openAddModal = (subId: number) => {
     setModalSubId(subId);
@@ -129,6 +129,7 @@ export const HomeScreen = () => {
 
       {showModal && modalSubId !== null && (
         <NewEntryModal
+          monthOffset={monthOffset}
           subcategoryId={modalSubId}
           onClose={() => setShowModal(false)}
           onSave={async () => {

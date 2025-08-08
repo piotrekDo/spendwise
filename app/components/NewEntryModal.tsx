@@ -5,15 +5,30 @@ import { addEntry } from '../database/dbService';
 import colors from '../config/colors';
 
 type Props = {
+  monthOffset: number;
   subcategoryId: number;
   onClose: () => void;
   onSave: () => void;
 };
 
-export const NewEntryModal = ({ subcategoryId, onClose, onSave }: Props) => {
+export const NewEntryModal = ({ monthOffset, subcategoryId, onClose, onSave }: Props) => {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = today.getMonth() + monthOffset;
+  let final;
+  if (monthOffset === 0) {
+    final = today;
+  } else if (monthOffset < 0) {
+    // ostatni dzień danego miesiąca
+    final = new Date(year, month + 1, 0);
+  } else {
+    // pierwszy dzień danego miesiąca
+    final = new Date(year, month, 1);
+  }
+
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
-  const [date, setDate] = useState(new Date());
+  const [date, setDate] = useState(final);
   const [showDatePicker, setShowDatePicker] = useState(false);
 
   const handleSubmit = async () => {
@@ -43,14 +58,15 @@ export const NewEntryModal = ({ subcategoryId, onClose, onSave }: Props) => {
 
           <Text style={styles.label}>Data</Text>
           <TouchableOpacity onPress={() => setShowDatePicker(true)} style={styles.dateBtn}>
-            <Text style={styles.dateText}>{date.toLocaleDateString()}</Text>
+            <Text style={styles.dateText}>{date.toLocaleDateString('pl-PL')}</Text>
           </TouchableOpacity>
 
           {showDatePicker && (
             <DateTimePicker
               value={date}
               mode='date'
-              display='default'
+              display='spinner'
+              locale='pl-PL'
               onChange={(event, selected) => {
                 if (selected) setDate(selected);
                 setShowDatePicker(false);
