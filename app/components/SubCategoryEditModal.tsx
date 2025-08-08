@@ -2,37 +2,34 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, Modal, StyleSheet, TextInput, TouchableOpacity, FlatList, ScrollView } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import colors from '../config/colors';
-import { DisplayCategory } from '../model/Spendings';
+import { DisplayCategory, DisplaySubcategory } from '../model/Spendings';
 import { AppIcon, getIconNames } from '../services/iconsService';
-
-export type SaveType = 'save' | 'update';
+import { SaveType } from './CategoryEditModal';
 
 interface Props {
   visible: boolean;
-  cat?: DisplayCategory;
-  onSave: (type: SaveType, updated: DisplayCategory) => void;
+  expandedCategory: number;
+  sub?: DisplaySubcategory;
+  onSave: (type: SaveType, updated: DisplaySubcategory) => void;
   onClose: () => void;
 }
 
 const presetColors = ['#FF5722', '#4CAF50', '#2196F3', '#FFC107', '#9C27B0', '#00BCD4', '#795548', '#607D8B'];
 
-export const CategoryEditModal = ({visible, cat, onClose, onSave }: Props) => {
+export const SubCategoryEditModal = ({ visible, sub, expandedCategory, onSave, onClose }: Props) => {
   const [icons, setIcons] = useState<AppIcon[]>([]);
-  const [name, setName] = useState(cat ? cat.name : 'Nowa kategoria');
-  const [selectedIcon, setSelectedIcon] = useState<keyof typeof MaterialCommunityIcons.glyphMap>(
-    cat ? cat.icon : 'dots-horizontal-circle-outline'
-  );
-  const [selectedIconId, setSelectedIconId] = useState<number>(cat ? cat.iconId : 12);
-  const [selectedColor, setSelectedColor] = useState(cat ? cat.color : '#4CAF50');
 
-  useEffect(() => {
-    getIconNames().then(setIcons);
-  }, []);
+  const [name, setName] = useState(sub ? sub.name : 'Nowa podkategoria');
+  const [selectedIcon, setSelectedIcon] = useState<keyof typeof MaterialCommunityIcons.glyphMap>(
+    sub ? sub.icon : 'dots-horizontal-circle-outline'
+  );
+  const [selectedIconId, setSelectedIconId] = useState<number>(sub ? sub.iconId : 12);
+  const [selectedColor, setSelectedColor] = useState(sub ? sub.color : '#4CAF50');
 
   const handleSave = () => {
-    const category = cat
+    const subCategory: DisplaySubcategory = sub
       ? {
-          ...cat,
+          ...sub,
           name,
           iconId: selectedIconId,
           icon: selectedIcon,
@@ -40,25 +37,27 @@ export const CategoryEditModal = ({visible, cat, onClose, onSave }: Props) => {
         }
       : {
           id: -1,
+          categoryId: expandedCategory,
           name: name,
           iconId: selectedIconId,
           icon: selectedIcon,
           color: selectedColor,
-          limit: null,
-          sum: 0,
-          positive: false,
           isDefault: false,
-          subcategories: [],
+          sum: 0,
         };
-    onSave(cat ? 'update' : 'save', category);
+    onSave(sub ? 'update' : 'save', subCategory);
     onClose();
   };
+
+  useEffect(() => {
+    getIconNames().then(setIcons);
+  }, []);
 
   return (
     <Modal transparent animationType='fade' visible={visible}>
       <View style={styles.overlay}>
         <View style={styles.modal}>
-          <Text style={styles.label}>Nazwa kategorii</Text>
+          <Text style={styles.label}>Nazwa podkategorii </Text>
           <TextInput style={styles.input} value={name} onChangeText={setName} />
 
           <Text style={styles.label}>Kolor</Text>

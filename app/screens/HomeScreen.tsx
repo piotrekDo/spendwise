@@ -4,10 +4,10 @@ import { Category } from '../components/Category';
 import { NewEntryModal } from '../components/NewEntryModal';
 import colors from '../config/colors';
 import { DisplayCategory, DisplaySubcategory } from '../model/Spendings';
-import { getCategorySkeleton } from '../services/categoriesService';
 import { getSelectedCategorySpendings, getSpendingsInRange, SpendingEntry } from '../services/spendingsService';
 import { CategoryDetailsModal } from '../components/CategoryDetailsModal';
 import { useFocusEffect } from '@react-navigation/native';
+import { getCategorySkeletonForSelectedmonth, getCategorySkeletonForSelectedmonthWrapped } from '../services/categoriesService';
 
 const MONTHS = [
   'Styczeń',
@@ -29,8 +29,6 @@ export const HomeScreen = () => {
   const [data, setData] = useState<DisplayCategory[]>([]);
   const [skeleton, setSkeleton] = useState<DisplayCategory[]>([]);
   const [expanded, setExpanded] = useState<number[]>([]);
-
-  const [activeSub, setActiveSub] = useState<DisplaySubcategory | null>(null);
 
   const [showModal, setShowModal] = useState(false);
   const [modalSubId, setModalSubId] = useState<number | null>(null);
@@ -77,9 +75,16 @@ export const HomeScreen = () => {
     setData(merged);
   };
 
-  useFocusEffect(() => {
-    getCategorySkeleton().then(setSkeleton);
-  });
+useFocusEffect(
+  React.useCallback(() => {
+    const today = new Date();
+    const current = new Date(today.getFullYear(), today.getMonth() + monthOffset);
+    const currentMonth = current.getMonth() + 1;
+    const currentYear = current.getFullYear();
+
+    getCategorySkeletonForSelectedmonthWrapped(currentYear, currentMonth).then(setSkeleton);
+  }, [monthOffset])
+);
 
   useEffect(() => {
     if (skeleton.length > 0) loadData();
@@ -118,7 +123,6 @@ export const HomeScreen = () => {
             item={item}
             expanded={expanded}
             toggleExpand={toggleExpand}
-            setActiveSub={setActiveSub}
             openAddModal={openAddModal}
             openCategoryModal={openCategoryDetailsModal}
           />

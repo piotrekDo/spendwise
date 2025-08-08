@@ -33,18 +33,6 @@ export const getSpendingsInRange = async (startDate: string, endDate: string): P
   return results as SpendingEntry[];
 };
 
-export const getSelectedSubCategorySpendings = async (subcategoryId: number, startDate: string, endDate: string) => {
-  const db = getDb();
-  const query = `
-    SELECT 
-      e.id, e.amount, e.description, e.date
-    FROM entries e
-    WHERE e.subcategoryId = ? AND e.date BETWEEN ? AND ?
-  `;
-
-  const results = await db.getAllAsync(query, [subcategoryId, startDate, endDate]);
-  return results as SpendingEntry[];
-};
 
 export const getSelectedCategorySpendings = async (categoryId: number, startDate: string, endDate: string) => {
   const db = getDb();

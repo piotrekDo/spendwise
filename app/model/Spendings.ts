@@ -15,6 +15,7 @@ export type DisplayCategory = {
 
 export type DisplaySubcategory = {
   id: number;
+  categoryId: number;
   name: string;
   iconId: number;
   icon: keyof typeof MaterialCommunityIcons.glyphMap;

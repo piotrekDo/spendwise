@@ -32,10 +32,18 @@ export const initDatabase = async () => {
       name TEXT NOT NULL,
       iconId INTEGER NOT NULL,
       color TEXT NOT NULL,
-      "limit" REAL, 
       positive INTEGER NOT NULL DEFAULT 0,
       isDefault INTEGER NOT NULL DEFAULT 0,
       FOREIGN KEY (iconId) REFERENCES app_icons(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS category_limits (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      categoryId INTEGER NOT NULL,
+      year INTEGER,
+      month INTEGER,
+      "limit" REAL NOT NULL,
+      FOREIGN KEY (categoryId) REFERENCES categories(id)
     );
 
     CREATE TABLE IF NOT EXISTS subcategories (
@@ -55,6 +63,7 @@ export const initDatabase = async () => {
       description TEXT,
       date TEXT NOT NULL,
       subcategoryId INTEGER NOT NULL,
+      isArchived INTEGER NOT NULL DEFAULT 0,
       FOREIGN KEY (subcategoryId) REFERENCES subcategories(id)
     );
 
@@ -63,7 +72,6 @@ export const initDatabase = async () => {
       name TEXT NOT NULL,
       iconId INTEGER NOT NULL,
       color TEXT NOT NULL,
-      "limit" REAL, 
       positive INTEGER NOT NULL DEFAULT 0,
       isDefault INTEGER NOT NULL DEFAULT 0,
       FOREIGN KEY (iconId) REFERENCES app_icons(id)
@@ -99,8 +107,8 @@ const checAndInsertPresetData = async () => {
   const categoryIdMap = {};
   for (const cat of presetCategories) {
     const result = await db.runAsync(
-      `INSERT INTO categories (name, iconId, color, "limit", positive, isDefault) VALUES (?, ?, ?, ?, ?, ?)`,
-      [cat.name, cat.iconId, cat.color, cat.limit, 0, 0]
+      `INSERT INTO categories (name, iconId, color, positive, isDefault) VALUES (?, ?, ?, ?, ?)`,
+      [cat.name, cat.iconId, cat.color, 0, 0]
     );
     categoryIdMap[cat.name] = result.lastInsertRowId;
   }
@@ -204,10 +212,10 @@ const insertInitialData = async () => {
   });
 
   await db.runAsync(
-    `INSERT INTO categories (id, name, iconId, color, "limit", positive, isDefault) VALUES (1, 'Dochód', 1, '#4CAF50', NULL, 1, 1)`
+    `INSERT INTO categories (id, name, iconId, color, positive, isDefault) VALUES (1, 'Dochód', 1, '#4CAF50', 1, 1)`
   );
   await db.runAsync(
-    `INSERT INTO categories (id, name, iconId, color, "limit", positive, isDefault) VALUES (2, 'Pozostałe', 12, '#9E9E9E', NULL, 0, 1)`
+    `INSERT INTO categories (id, name, iconId, color, positive, isDefault) VALUES (2, 'Pozostałe', 12, '#9E9E9E', 0, 1)`
   );
 
   await db.runAsync(
@@ -234,11 +242,10 @@ const insertInitialData = async () => {
   ];
 
   for (const cat of preset_categories) {
-    await db.runAsync(`INSERT INTO preset_categories (name, iconId, color, "limit") VALUES (?, ?, ?, ?)`, [
+    await db.runAsync(`INSERT INTO preset_categories (name, iconId, color) VALUES (?, ?, ?)`, [
       cat.name,
       cat.iconId,
       cat.color,
-      null,
     ]);
   }
 

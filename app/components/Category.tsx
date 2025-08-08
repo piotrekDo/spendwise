@@ -9,12 +9,11 @@ interface Props {
   item: DisplayCategory;
   expanded: number[];
   toggleExpand: (id: number) => void;
-  setActiveSub: React.Dispatch<React.SetStateAction<DisplaySubcategory | null>>;
   openAddModal: (subId: number) => void;
   openCategoryModal: (categoryId: number) => void;
 }
 
-export const Category = ({ item, expanded, toggleExpand, setActiveSub, openAddModal, openCategoryModal }: Props) => {
+export const Category = ({ item, expanded, toggleExpand, openAddModal, openCategoryModal }: Props) => {
   return (
     <View key={item.id}>
       <View style={styles.card}>
@@ -31,7 +30,7 @@ export const Category = ({ item, expanded, toggleExpand, setActiveSub, openAddMo
       {expanded.includes(item.id) && (
         <View style={styles.subList}>
           {item.subcategories.map(sub => (
-            <SubCategory key={sub.id} sub={sub} setActiveSub={setActiveSub} openAddModal={openAddModal} />
+            <SubCategory key={sub.id} sub={sub} openAddModal={openAddModal} />
           ))}
         </View>
       )}

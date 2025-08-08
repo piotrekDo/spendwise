@@ -1,15 +1,16 @@
 import React from 'react';
 import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
+import { SubCategory } from './SubCategory';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { DisplayCategory, DisplaySubcategory } from '../model/Spendings';
 import colors from '../config/colors';
-import { DisplaySubcategory } from '../model/Spendings';
 
 interface Props {
   sub: DisplaySubcategory;
-  openAddModal: (subId: number) => void
+  openSubCategoryEditModal: (sub: DisplaySubcategory) => void;
 }
 
-export const SubCategory = ({ sub, openAddModal }: Props) => {
+export const SubCategoryEdit = ({ sub, openSubCategoryEditModal }: Props) => {
   return (
     <View style={styles.subItem} key={sub.id}>
       <View style={styles.subLeft}>
@@ -17,13 +18,8 @@ export const SubCategory = ({ sub, openAddModal }: Props) => {
         <Text style={styles.subName}>{sub.name}</Text>
       </View>
       <View style={styles.subRight}>
-        <Text style={styles.subSum}>{sub.sum} zł</Text>
-        <TouchableOpacity
-          onPress={() => {
-            openAddModal(sub.id);
-          }}
-        >
-          <MaterialCommunityIcons name='plus-circle-outline' size={26} color={colors.primary} />
+        <TouchableOpacity onPress={() => openSubCategoryEditModal(sub)}>
+          <MaterialCommunityIcons name='file-document-edit' size={26} color={colors.secondary} />
         </TouchableOpacity>
       </View>
     </View>
