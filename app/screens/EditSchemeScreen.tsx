@@ -34,16 +34,24 @@ export const EditSchemeScreen = () => {
   const [deleteSubId, setDeleteSubId] = useState<number | null>(null);
   const isDeleteSubModalVisible = deleteSubId !== null;
 
-  const refresh = useCallback(() => {
-    return getCategorySkeletonForSelectedmonth().then(setSkeleton);
+    const getCurrentYearMonth = () => {
+    const now = new Date();
+    const d = new Date(now.getFullYear(), now.getMonth()); // +offset jeśli potrzebny
+    return { year: d.getFullYear(), month: d.getMonth() + 1 };
+  };
+
+  // jedno źródło prawdy do pobierania danych
+  const refresh = useCallback(async (y?: number, m?: number) => {
+    const { year, month } = y && m ? { year: y, month: m } : getCurrentYearMonth();
+    const data = await getCategorySkeletonForSelectedmonth(year, month);
+    setSkeleton(data);
   }, []);
 
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
+  // odświeżaj ZA KAŻDYM razem gdy ekran wraca na wierzch
   useFocusEffect(
     useCallback(() => {
-      void refresh();
+      void refresh(); // bierze bieżący rok/miesiąc
+      return () => {}; // cleanup opcjonalnie
     }, [refresh])
   );
 

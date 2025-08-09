@@ -20,8 +20,6 @@ export const Category = ({ item, expanded, toggleExpand, openAddModal, openCateg
     [item.limit]
   );
 
-  console.log(item.limit && item.limit)
-
   const progress = useMemo(() => {
     if (!hasLimit) return 0;
     const p = item.sum / (item.limit as number);

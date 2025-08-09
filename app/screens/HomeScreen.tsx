@@ -170,13 +170,13 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   monthText: {
-    fontSize: 30,
+    fontSize: 25,
     color: colors.white,
     fontWeight: 'bold',
     marginVertical: 10,
   },
   saldoBox: {
-    padding: 15,
+    padding: 10,
     backgroundColor: colors.secondary,
     borderRadius: 10,
     marginBottom: 20,
