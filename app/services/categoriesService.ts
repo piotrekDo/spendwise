@@ -3,46 +3,40 @@ import { getDb } from '../database/db';
 /** Aktualizacja kategorii */
 export const updateCategory = async (name: string, iconId: number, color: string, categoryId: number) => {
   const db = getDb();
-
-  const query = `
-    UPDATE categories
-    SET name = ?, iconId = ?, color = ?
-    WHERE id = ?
-  `;
-
-  await db.runAsync(query, [name, iconId, color, categoryId]);
+  await db.runAsync(
+    `UPDATE categories SET name = ?, iconId = ?, color = ? WHERE id = ?`,
+    [name, iconId, color, categoryId]
+  );
   return true;
 };
 
+/** Dodawanie nowej kategorii */
 export const addNewCategory = async (name: string, iconId: number, color: string) => {
   const db = getDb();
-
   try {
     await db.execAsync('BEGIN');
 
-    const result = await db.runAsync(`INSERT INTO categories (name, iconId, color) VALUES (?, ?, ?)`, [
-      name,
-      iconId,
-      color,
-    ]);
+    const result = await db.runAsync(
+      `INSERT INTO categories (name, iconId, color) VALUES (?, ?, ?)`,
+      [name, iconId, color]
+    );
     const catId = result.lastInsertRowId;
 
-    await db.runAsync(`INSERT INTO subcategories (name, iconId, color, categoryId) VALUES (?, ?, ?, ?)`, [
-      'Nowe wydatki',
-      12,
-      '#ccc',
-      catId,
-    ]);
+    await db.runAsync(
+      `INSERT INTO subcategories (name, iconId, color, categoryId) VALUES (?, ?, ?, ?)`,
+      ['Nowe wydatki', 12, '#ccc', catId]
+    );
 
     await db.execAsync('COMMIT');
     return true;
   } catch (err) {
     await db.execAsync('ROLLBACK');
-    console.error('Transaction failed:', err);
+    console.error('❌ addNewCategory failed:', err);
     return false;
   }
 };
 
+/** Aktualizacja podkategorii */
 export const updateSubcategory = async (
   name: string,
   iconId: number,
@@ -51,67 +45,67 @@ export const updateSubcategory = async (
   edditedSubId: number
 ) => {
   const db = getDb();
-
-  const query = `
-    UPDATE subcategories
-    SET name = ?, iconId = ?, color = ?, categoryId = ?
-    WHERE id = ?
-  `;
-
-  await db.runAsync(query, [name, iconId, color, categoryId, edditedSubId]);
+  await db.runAsync(
+    `UPDATE subcategories SET name = ?, iconId = ?, color = ?, categoryId = ? WHERE id = ?`,
+    [name, iconId, color, categoryId, edditedSubId]
+  );
   return true;
 };
 
+/** Dodawanie nowej podkategorii */
 export const addNewSubcategory = async (name: string, iconId: number, color: string, categoryId: number) => {
   const db = getDb();
-
-  await db.runAsync(`INSERT INTO subcategories (name, iconId, color, categoryId) VALUES (?, ?, ?, ?)`, [
-    name,
-    iconId,
-    color,
-    categoryId,
-  ]);
-
+  await db.runAsync(
+    `INSERT INTO subcategories (name, iconId, color, categoryId) VALUES (?, ?, ?, ?)`,
+    [name, iconId, color, categoryId]
+  );
   return true;
 };
 
-/**
- * Wewnętrzna wersja usuwania podkategorii — BEZ transakcji.
- * Używana przez deleteCategoryById (który sam zarządza transakcją).
- * Przenosi entries do ID=1 (gdy positive=1) lub ID=2 (gdy positive=0),
- * dodaje prefiks "[Kategoria/Podkategoria: ] " i ustawia isArchived=1.
- */
+/** Wewnętrzna wersja usuwania podkategorii — bez transakcji */
 const deleteSubcategoryByIdInternal = async (subCategoryId: number) => {
   const db = getDb();
 
-  const sub = await db.getFirstAsync(
+  const row = await db.getFirstAsync(
     `SELECT s.name AS subName, c.name AS catName, c.positive
      FROM subcategories s
      JOIN categories c ON c.id = s.categoryId
      WHERE s.id = ?`,
     [subCategoryId]
   );
-
+  const sub = row as { subName: string; catName: string; positive: number } | undefined;
   if (!sub) throw new Error(`Subcategory ${subCategoryId} not found`);
 
-  const targetSubId = sub.positive ? 1 : 2; // 1 = "Pozostałe dochody", 2 = "Inne zakupy"
-  const prefix = `[${sub.catName}/${sub.subName}] `;
+  const targetId = sub.positive ? 1 : 2;
+  const prefix = `[${sub.catName}/${sub.subName}: ] `;
 
   await db.runAsync(
     `UPDATE entries
-       SET subcategoryId = ?,
-           description = ? || IFNULL(description, ''),
-           isArchived = 1
+     SET subcategoryId = ?,
+         description = ? || IFNULL(description, ''),
+         isArchived = 1
      WHERE subcategoryId = ?`,
-    [targetSubId, prefix, subCategoryId]
+    [targetId, prefix, subCategoryId]
   );
 
   await db.runAsync(`DELETE FROM subcategories WHERE id = ?`, [subCategoryId]);
 };
 
-/** Usuwanie pojedynczej podkategorii — Z transakcją (publiczne API) */
+
+/** Usuwanie podkategorii z transakcją */
 export const deleteSubcategoryById = async (subCategoryId: number) => {
   const db = getDb();
+
+  const row = await db.getFirstAsync(
+    `SELECT isDefault FROM subcategories WHERE id = ?`,
+    [subCategoryId]
+  );
+  const guard = row as { isDefault: number } | undefined;
+
+  if (guard?.isDefault) {
+    console.warn(`⛔ Próba usunięcia domyślnej podkategorii ID=${subCategoryId}`);
+    return false;
+  }
 
   try {
     await db.execAsync('BEGIN');
@@ -125,31 +119,32 @@ export const deleteSubcategoryById = async (subCategoryId: number) => {
   }
 };
 
-/**
- * Usuwanie całej kategorii:
- * - przenosi wpisy każdej jej podkategorii (jak wyżej, zależnie od positive),
- * - usuwa subkategorie,
- * - usuwa kategorię.
- * Całość w jednej transakcji.
- */
+
+/** Usuwanie kategorii wraz z podkategoriami */
 export const deleteCategoryById = async (categoryId: number) => {
   const db = getDb();
+
+  // getFirstAsync: bez generyka, potem cast
+  const guardRow = await db.getFirstAsync(
+    `SELECT isDefault FROM categories WHERE id = ?`,
+    [categoryId]
+  );
+  const guard = guardRow as { isDefault: number } | undefined;
+
+  if (guard?.isDefault) {
+    console.warn(`⛔ Próba usunięcia domyślnej kategorii ID=${categoryId}`);
+    return false;
+  }
 
   try {
     await db.execAsync('BEGIN');
 
-    // (opcjonalnie) nie pozwalaj kasować defaultów
-    const guard = (await db.getFirstAsync(`SELECT isDefault FROM categories WHERE id = ?`, [categoryId])) as
-      | { isDefault: number }
-      | undefined;
-    if (guard && guard.isDefault === 1) {
-      throw new Error('Cannot delete default category');
-    }
-
-    // getAllAsync nie jest generyczne – rzutujemy wynik
-    const subs = (await db.getAllAsync(`SELECT id FROM subcategories WHERE categoryId = ?`, [categoryId])) as Array<{
-      id: number;
-    }>;
+    // getAllAsync: bez generyka, potem cast na tablicę
+    const subsRows = await db.getAllAsync(
+      `SELECT id FROM subcategories WHERE categoryId = ?`,
+      [categoryId]
+    );
+    const subs = subsRows as Array<{ id: number }>;
 
     for (const { id } of subs) {
       await deleteSubcategoryByIdInternal(id); // wersja bez transakcji
@@ -166,19 +161,11 @@ export const deleteCategoryById = async (categoryId: number) => {
   }
 };
 
-export const getCategorySkeletonForSelectedmonthWrapped = async (year?: number, month?: number) => {
-  try {
-    return await getCategorySkeletonForSelectedmonth(year, month);
-  } catch (error) {
-    console.log('💥 Błąd przy pobieraniu limitów:', error);
-  }
-};
 
-/** Pobieranie szkieletu kategorii + subkategorii + limitów dla danego roku i miesiąca */
+/** Pobieranie kategorii + subkategorii + limitów */
 export const getCategorySkeletonForSelectedmonth = async (year?: number, month?: number) => {
   const db = getDb();
 
-  // Kategorie
   const categories = await db.getAllAsync(
     `SELECT c.id, c.name, i.name as icon, i.id as iconId, c.color, c.positive, c.isDefault
      FROM categories c
@@ -186,7 +173,6 @@ export const getCategorySkeletonForSelectedmonth = async (year?: number, month?:
      ORDER BY c.positive DESC, c.isDefault ASC`
   );
 
-  // Subkategorie
   const subcategories = await db.getAllAsync(
     `SELECT s.id, s.name, s.categoryId, i.name as icon, i.id as iconId, s.color, s.isDefault
      FROM subcategories s
@@ -194,54 +180,53 @@ export const getCategorySkeletonForSelectedmonth = async (year?: number, month?:
      ORDER BY s.isDefault ASC`
   );
 
-  // Limity (jeden najlepszy per categoryId)
-  const limits =
-    typeof year === 'number' && typeof month === 'number'
-      ? await db.getAllAsync(
-          `
-    WITH ordered_limits AS (
-      SELECT 
-        cl.categoryId,
-        cl."limit",
-        ROW_NUMBER() OVER (
-          PARTITION BY cl.categoryId
-          ORDER BY 
-            CASE
-              WHEN cl.year = ? AND cl.month = ? THEN 1
-              WHEN cl.year = ? AND cl.month IS NULL THEN 2
-              ELSE 3
-            END
-        ) as rn
-      FROM category_limits cl
-      WHERE
-        (cl.year = ? AND cl.month = ?)
-        OR (cl.year = ? AND cl.month IS NULL)
-        OR (cl.year IS NULL AND cl.month IS NULL)
-    )
-    SELECT categoryId, "limit"
-    FROM ordered_limits
-    WHERE rn = 1;
-    `,
-          [year, month, year, year, month, year]
-        )
-      : [];
+  // --- LIMITY ---
+  let limits: { categoryId: number; limit: number }[] = [];
 
-  const categoryLimitMap = new Map<number, number>();
-  for (const { categoryId, limit } of limits) {
-    categoryLimitMap.set(categoryId, limit);
+  if (typeof year === 'number' && typeof month === 'number') {
+    limits = (await db.getAllAsync(
+      `
+      WITH best_limits AS (
+        SELECT 
+          cl.categoryId,
+          cl."limit",
+          ROW_NUMBER() OVER (
+            PARTITION BY cl.categoryId
+            ORDER BY 
+              CASE
+                WHEN cl.year = ? AND cl.month = ? THEN 1
+                WHEN cl.year = ? AND cl.month IS NULL THEN 2
+                WHEN cl.year IS NULL AND cl.month IS NULL THEN 3
+                ELSE 4
+              END
+          ) AS rn
+        FROM category_limits cl
+        WHERE
+          (cl.year = ? AND cl.month = ?)
+          OR (cl.year = ? AND cl.month IS NULL)
+          OR (cl.year IS NULL AND cl.month IS NULL)
+      )
+      SELECT categoryId, "limit"
+      FROM best_limits
+      WHERE rn = 1;
+      `,
+      [year, month, year, year, month, year]
+    )) as any[];
   }
 
-  // Grupowanie w strukturę DisplayCategory[]
+  const categoryLimitMap = new Map<number, number>();
+  for (const row of limits) categoryLimitMap.set(row.categoryId, row.limit);
+
   return categories.map((cat: any) => ({
     id: cat.id,
     name: cat.name,
     iconId: cat.iconId,
     icon: cat.icon,
     color: cat.color,
-    limit: categoryLimitMap.get(cat.id) ?? null,
+    limit: categoryLimitMap.get(cat.id) ?? null, // będzie 200 z Twojego screena
     sum: 0,
-    positive: Boolean(cat.positive),
-    isDefault: Boolean(cat.isDefault),
+    positive: !!cat.positive,
+    isDefault: !!cat.isDefault,
     subcategories: subcategories
       .filter((sub: any) => sub.categoryId === cat.id)
       .map((sub: any) => ({
@@ -251,7 +236,7 @@ export const getCategorySkeletonForSelectedmonth = async (year?: number, month?:
         iconId: sub.iconId,
         icon: sub.icon,
         color: sub.color,
-        isDefault: Boolean(sub.isDefault),
+        isDefault: !!sub.isDefault,
         sum: 0,
       })),
   }));

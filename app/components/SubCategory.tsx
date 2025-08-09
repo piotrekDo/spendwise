@@ -13,7 +13,7 @@ export const SubCategory = ({ sub, openAddModal }: Props) => {
   return (
     <View style={styles.subItem} key={sub.id}>
       <View style={styles.subLeft}>
-        <MaterialCommunityIcons name={sub.icon} size={20} color={colors.textSecondary} />
+        <MaterialCommunityIcons name={sub.icon} size={20} color={sub.color} />
         <Text style={styles.subName}>{sub.name}</Text>
       </View>
       <View style={styles.subRight}>

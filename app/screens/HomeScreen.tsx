@@ -7,7 +7,7 @@ import { DisplayCategory, DisplaySubcategory } from '../model/Spendings';
 import { getSelectedCategorySpendings, getSpendingsInRange, SpendingEntry } from '../services/spendingsService';
 import { CategoryDetailsModal } from '../components/CategoryDetailsModal';
 import { useFocusEffect } from '@react-navigation/native';
-import { getCategorySkeletonForSelectedmonth, getCategorySkeletonForSelectedmonthWrapped } from '../services/categoriesService';
+import { getCategorySkeletonForSelectedmonth } from '../services/categoriesService';
 
 const MONTHS = [
   'Styczeń',
@@ -82,7 +82,7 @@ useFocusEffect(
     const currentMonth = current.getMonth() + 1;
     const currentYear = current.getFullYear();
 
-    getCategorySkeletonForSelectedmonthWrapped(currentYear, currentMonth).then(setSkeleton);
+    getCategorySkeletonForSelectedmonth(currentYear, currentMonth).then(setSkeleton);
   }, [monthOffset])
 );
 

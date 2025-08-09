@@ -82,7 +82,7 @@ export const CategoryEdit = ({
           onLongPress={() => handleOpenCategoryEditModal(item)}
           accessibilityRole='button'
         >
-          <MaterialCommunityIcons name={item.icon} size={28} color={colors.primary} />
+          <MaterialCommunityIcons name={item.icon} size={28} color={item.color} />
           <Text style={styles.cardName}>{item.name}</Text>
         </TouchableOpacity>
       </View>

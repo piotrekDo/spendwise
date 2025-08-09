@@ -11,6 +11,7 @@ export const initDatabase = async () => {
     DROP TABLE IF EXISTS entries;
     DROP TABLE IF EXISTS subcategories;
     DROP TABLE IF EXISTS categories;
+    DROP TABLE IF EXISTS category_limits;
     DROP TABLE IF EXISTS preset_subcategories;
     DROP TABLE IF EXISTS preset_categories;
     DROP TABLE IF EXISTS app_icons;
@@ -37,6 +38,9 @@ export const initDatabase = async () => {
       FOREIGN KEY (iconId) REFERENCES app_icons(id)
     );
 
+    CREATE INDEX IF NOT EXISTS idx_categories_iconId ON categories(iconId);
+    CREATE INDEX IF NOT EXISTS idx_categories_positive_default ON categories(positive, isDefault);
+
     CREATE TABLE IF NOT EXISTS category_limits (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       categoryId INTEGER NOT NULL,
@@ -45,6 +49,26 @@ export const initDatabase = async () => {
       "limit" REAL NOT NULL,
       FOREIGN KEY (categoryId) REFERENCES categories(id)
     );
+
+    -- 🔥 Jednoznaczność limitów per kategoria i poziom (global/rok/miesiąc)
+    -- Globalny: tylko 1 rekord z (year IS NULL AND month IS NULL) per categoryId
+    CREATE UNIQUE INDEX IF NOT EXISTS ux_cat_limits_global
+    ON category_limits(categoryId)
+    WHERE year IS NULL AND month IS NULL;
+
+    -- Roczny: tylko 1 rekord z (konkretny year, month IS NULL) per categoryId
+    CREATE UNIQUE INDEX IF NOT EXISTS ux_cat_limits_year
+    ON category_limits(categoryId, year)
+    WHERE month IS NULL AND year IS NOT NULL;
+
+    -- Miesięczny: tylko 1 rekord z (konkretny year, month) per categoryId
+    CREATE UNIQUE INDEX IF NOT EXISTS ux_cat_limits_month
+    ON category_limits(categoryId, year, month)
+    WHERE month IS NOT NULL;
+
+    -- Indeks do szybkich zapytań z priorytetami (year,month)
+    CREATE INDEX IF NOT EXISTS idx_category_limits_cat_year_month
+    ON category_limits(categoryId, year, month);
 
     CREATE TABLE IF NOT EXISTS subcategories (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -57,15 +81,24 @@ export const initDatabase = async () => {
       FOREIGN KEY (categoryId) REFERENCES categories(id)
     );
 
+    CREATE INDEX IF NOT EXISTS idx_subcategories_categoryId ON subcategories(categoryId);
+    CREATE INDEX IF NOT EXISTS idx_subcategories_iconId ON subcategories(iconId);
+    CREATE INDEX IF NOT EXISTS idx_subcategories_category_default ON subcategories(categoryId, isDefault);
+
     CREATE TABLE IF NOT EXISTS entries (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       amount REAL NOT NULL,
       description TEXT,
-      date TEXT NOT NULL,
+      date TEXT NOT NULL,              -- ISO YYYY-MM-DD
       subcategoryId INTEGER NOT NULL,
       isArchived INTEGER NOT NULL DEFAULT 0,
       FOREIGN KEY (subcategoryId) REFERENCES subcategories(id)
     );
+
+    CREATE INDEX IF NOT EXISTS idx_entries_subcategoryId ON entries(subcategoryId);
+    CREATE INDEX IF NOT EXISTS idx_entries_date ON entries(date);
+    CREATE INDEX IF NOT EXISTS idx_entries_subcategory_date ON entries(subcategoryId, date);
+    CREATE INDEX IF NOT EXISTS idx_entries_archived ON entries(isArchived);
 
     CREATE TABLE IF NOT EXISTS preset_categories (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
