@@ -56,7 +56,7 @@ export const updateSubcategory = async (
     UPDATE subcategories
     SET name = ?, iconId = ?, color = ?, categoryId = ?
     WHERE id = ?
-    `;
+  `;
 
   await db.runAsync(query, [name, iconId, color, categoryId, edditedSubId]);
   return true;
@@ -75,9 +75,96 @@ export const addNewSubcategory = async (name: string, iconId: number, color: str
   return true;
 };
 
-export const deleteSubcategoryById = (subCategoryId : number) => {
+/**
+ * Wewnętrzna wersja usuwania podkategorii — BEZ transakcji.
+ * Używana przez deleteCategoryById (który sam zarządza transakcją).
+ * Przenosi entries do ID=1 (gdy positive=1) lub ID=2 (gdy positive=0),
+ * dodaje prefiks "[Kategoria/Podkategoria: ] " i ustawia isArchived=1.
+ */
+const deleteSubcategoryByIdInternal = async (subCategoryId: number) => {
+  const db = getDb();
 
-}
+  const sub = await db.getFirstAsync(
+    `SELECT s.name AS subName, c.name AS catName, c.positive
+     FROM subcategories s
+     JOIN categories c ON c.id = s.categoryId
+     WHERE s.id = ?`,
+    [subCategoryId]
+  );
+
+  if (!sub) throw new Error(`Subcategory ${subCategoryId} not found`);
+
+  const targetSubId = sub.positive ? 1 : 2; // 1 = "Pozostałe dochody", 2 = "Inne zakupy"
+  const prefix = `[${sub.catName}/${sub.subName}] `;
+
+  await db.runAsync(
+    `UPDATE entries
+       SET subcategoryId = ?,
+           description = ? || IFNULL(description, ''),
+           isArchived = 1
+     WHERE subcategoryId = ?`,
+    [targetSubId, prefix, subCategoryId]
+  );
+
+  await db.runAsync(`DELETE FROM subcategories WHERE id = ?`, [subCategoryId]);
+};
+
+/** Usuwanie pojedynczej podkategorii — Z transakcją (publiczne API) */
+export const deleteSubcategoryById = async (subCategoryId: number) => {
+  const db = getDb();
+
+  try {
+    await db.execAsync('BEGIN');
+    await deleteSubcategoryByIdInternal(subCategoryId);
+    await db.execAsync('COMMIT');
+    return true;
+  } catch (err) {
+    await db.execAsync('ROLLBACK');
+    console.error('❌ deleteSubcategoryById failed:', err);
+    return false;
+  }
+};
+
+/**
+ * Usuwanie całej kategorii:
+ * - przenosi wpisy każdej jej podkategorii (jak wyżej, zależnie od positive),
+ * - usuwa subkategorie,
+ * - usuwa kategorię.
+ * Całość w jednej transakcji.
+ */
+export const deleteCategoryById = async (categoryId: number) => {
+  const db = getDb();
+
+  try {
+    await db.execAsync('BEGIN');
+
+    // (opcjonalnie) nie pozwalaj kasować defaultów
+    const guard = (await db.getFirstAsync(`SELECT isDefault FROM categories WHERE id = ?`, [categoryId])) as
+      | { isDefault: number }
+      | undefined;
+    if (guard && guard.isDefault === 1) {
+      throw new Error('Cannot delete default category');
+    }
+
+    // getAllAsync nie jest generyczne – rzutujemy wynik
+    const subs = (await db.getAllAsync(`SELECT id FROM subcategories WHERE categoryId = ?`, [categoryId])) as Array<{
+      id: number;
+    }>;
+
+    for (const { id } of subs) {
+      await deleteSubcategoryByIdInternal(id); // wersja bez transakcji
+    }
+
+    await db.runAsync(`DELETE FROM categories WHERE id = ?`, [categoryId]);
+
+    await db.execAsync('COMMIT');
+    return true;
+  } catch (err) {
+    await db.execAsync('ROLLBACK');
+    console.error('❌ deleteCategoryById failed:', err);
+    return false;
+  }
+};
 
 export const getCategorySkeletonForSelectedmonthWrapped = async (year?: number, month?: number) => {
   try {
@@ -139,14 +226,13 @@ export const getCategorySkeletonForSelectedmonth = async (year?: number, month?:
         )
       : [];
 
-  // Mapowanie limitów
   const categoryLimitMap = new Map<number, number>();
   for (const { categoryId, limit } of limits) {
     categoryLimitMap.set(categoryId, limit);
   }
 
   // Grupowanie w strukturę DisplayCategory[]
-  const grouped = categories.map((cat: any) => ({
+  return categories.map((cat: any) => ({
     id: cat.id,
     name: cat.name,
     iconId: cat.iconId,
@@ -169,5 +255,4 @@ export const getCategorySkeletonForSelectedmonth = async (year?: number, month?:
         sum: 0,
       })),
   }));
-  return grouped;
 };

@@ -3,14 +3,10 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as Haptics from 'expo-haptics';
 import React, { useCallback, useEffect, useState } from 'react';
-import {
-  FlatList,
-  Pressable,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import Swipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
+import Animated, { interpolate, useAnimatedStyle } from 'react-native-reanimated';
+
 import { CategoryEdit } from '../components/CategoryEdit';
 import colors from '../config/colors';
 import { DisplayCategory, DisplaySubcategory } from '../model/Spendings';
@@ -18,6 +14,7 @@ import { RootStackParamList } from '../navigation/RootNavigator';
 import routes from '../navigation/routes';
 import {
   deleteSubcategoryById,
+  deleteCategoryById,
   getCategorySkeletonForSelectedmonth,
 } from '../services/categoriesService';
 import useModalState from '../state/useModalState';
@@ -29,9 +26,13 @@ export const EditSchemeScreen = () => {
   const { expandedCategory, setExpandedCategory } = useModalState();
   const navigation = useNavigation<Nav>();
 
-  // stan modala usuwania
-  const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
-  const isDeleteModalVisible = deleteTargetId !== null;
+  // 🆕 Modal do usuwania kategorii
+  const [deleteCategoryId, setDeleteCategoryId] = useState<number | null>(null);
+  const isDeleteCategoryModalVisible = deleteCategoryId !== null;
+
+  // 🆕 Modal do usuwania podkategorii
+  const [deleteSubId, setDeleteSubId] = useState<number | null>(null);
+  const isDeleteSubModalVisible = deleteSubId !== null;
 
   const refresh = useCallback(() => {
     return getCategorySkeletonForSelectedmonth().then(setSkeleton);
@@ -40,7 +41,6 @@ export const EditSchemeScreen = () => {
   useEffect(() => {
     void refresh();
   }, [refresh]);
-
   useFocusEffect(
     useCallback(() => {
       void refresh();
@@ -55,72 +55,166 @@ export const EditSchemeScreen = () => {
     navigation.navigate(routes.MODAL_SUBCATEGORY_EDIT as any, { sub, expandedCategory });
   };
 
-  const handleDeleteSub = (id: number) => {
-    setDeleteTargetId(id);
-    void Haptics.selectionAsync(); 
+  // =======================
+  // 🗑 Obsługa kategorii
+  // =======================
+  const renderRightActionsCat = (progress: Animated.SharedValue<number>, catId: number) => {
+    const animatedStyle = useAnimatedStyle(() => {
+      const opacity = interpolate(progress.value, [1, 0], [1, 0.01]);
+      return { opacity };
+    });
+    return (
+      <Animated.View style={[styles.deleteButton, animatedStyle]}>
+        <TouchableOpacity onPress={() => handleDeleteCategory(catId)}>
+          <MaterialCommunityIcons name='trash-can-outline' size={24} color='white' />
+        </TouchableOpacity>
+      </Animated.View>
+    );
   };
 
-  const closeDeleteModal = () => {
-    setDeleteTargetId(null);
+  const handleDeleteCategory = (id: number) => {
+    setDeleteCategoryId(id);
+    void Haptics.selectionAsync();
   };
 
-  const confirmDelete = async () => {
-    if (deleteTargetId == null) return;
+  const handleSwipeOpenCat = (id: number) => {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setTimeout(() => {
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    }, 80);
+    setDeleteCategoryId(id);
+  };
+
+  const handleSwipeWillOpenCat = () => {
+    void Haptics.selectionAsync();
+  };
+
+  const closeDeleteCategoryModal = () => {
+    setDeleteCategoryId(null);
+  };
+
+  const confirmDeleteCategory = async () => {
+    if (deleteCategoryId == null) return;
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    await deleteCategoryById(deleteCategoryId);
+    setDeleteCategoryId(null);
+    await refresh();
+  };
 
-    await deleteSubcategoryById(deleteTargetId);
-    setDeleteTargetId(null);
+  // =======================
+  // 🗑 Obsługa podkategorii
+  // =======================
+  const handleDeleteSub = (id: number) => {
+    setDeleteSubId(id);
+    void Haptics.selectionAsync();
+  };
+
+  const closeDeleteSubModal = () => {
+    setDeleteSubId(null);
+  };
+
+  const confirmDeleteSub = async () => {
+    if (deleteSubId == null) return;
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    await deleteSubcategoryById(deleteSubId);
+    setDeleteSubId(null);
     await refresh();
   };
 
   return (
     <View style={styles.container}>
-      <TouchableOpacity onPress={() => openCategoryEditModal(undefined)} accessibilityRole="button">
+      <TouchableOpacity onPress={() => openCategoryEditModal(undefined)}>
         <View style={styles.addCategoryBtn}>
-          <MaterialCommunityIcons name={'plus'} size={30} color="white" />
+          <MaterialCommunityIcons name='plus' size={30} color='white' />
         </View>
       </TouchableOpacity>
 
       <FlatList
         style={styles.list}
         data={skeleton}
-        renderItem={({ item }) => (
-          <CategoryEdit
-            item={item}
-            expandedCategory={expandedCategory}
-            toggleExpand={setExpandedCategory}
-            openCategoryEditModal={openCategoryEditModal}
-            openSubEditModal={openSubEditModal}
-            onDeleteSub={handleDeleteSub} 
-          />
-        )}
+        renderItem={({ item }) => {
+          const content = (
+            <CategoryEdit
+              item={item}
+              expandedCategory={expandedCategory}
+              toggleExpand={setExpandedCategory}
+              openCategoryEditModal={openCategoryEditModal}
+              openSubEditModal={openSubEditModal}
+              onDeleteSub={handleDeleteSub}
+            />
+          );
+
+          // Jeśli to kategoria bazowa, bez swipe
+          if (item.isDefault) {
+            return content;
+          }
+
+          // Jeśli można usuwać, wrap w Swipeable
+          return (
+            <Swipeable
+              renderRightActions={progress => renderRightActionsCat(progress, item.id)}
+              overshootRight={false}
+              rightThreshold={40}
+              onSwipeableWillOpen={handleSwipeWillOpenCat}
+              onSwipeableOpen={() => handleSwipeOpenCat(item.id)}
+            >
+              {content}
+            </Swipeable>
+          );
+        }}
         keyExtractor={item => item.id.toString()}
         contentContainerStyle={styles.listContent}
-        keyboardShouldPersistTaps="handled"
+        keyboardShouldPersistTaps='handled'
         showsVerticalScrollIndicator={false}
       />
 
-      {/* PROSTY MODAL POTWIERDZENIA USUNIĘCIA */}
-      {isDeleteModalVisible && (
+      {/* MODAL usuwania kategorii */}
+      {isDeleteCategoryModalVisible && (
         <View style={styles.modalRoot}>
-          <Pressable style={styles.modalBackdrop} onPress={closeDeleteModal} />
+          <Pressable style={styles.modalBackdrop} onPress={closeDeleteCategoryModal} />
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
-              <MaterialCommunityIcons name="alert-circle-outline" size={22} color={colors.white} />
+              <MaterialCommunityIcons name='alert-circle-outline' size={22} color={colors.white} />
+              <Text style={styles.modalTitle}>Usunąć kategorię?</Text>
+            </View>
+            <Text style={styles.modalText}>
+              Kategoria zostanie usunięta, a wszystkie jej podkategorie i wpisy zostaną przeniesione do kategorii{' '}
+              <Text style={styles.modalTextStrong}>„Pozostałe”</Text>.
+            </Text>
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={[styles.btn, styles.btnGhost]} onPress={closeDeleteCategoryModal}>
+                <Text style={styles.btnGhostText}>Anuluj</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.btn, styles.btnDanger]} onPress={confirmDeleteCategory}>
+                <MaterialCommunityIcons name='trash-can-outline' size={18} color='#fff' />
+                <Text style={styles.btnDangerText}>Usuń</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      )}
+
+      {/* MODAL usuwania podkategorii */}
+      {isDeleteSubModalVisible && (
+        <View style={styles.modalRoot}>
+          <Pressable style={styles.modalBackdrop} onPress={closeDeleteSubModal} />
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <MaterialCommunityIcons name='alert-circle-outline' size={22} color={colors.white} />
               <Text style={styles.modalTitle}>Usunąć podkategorię?</Text>
             </View>
             <Text style={styles.modalText}>
               Podkategoria zostanie usunięta, a wszystkie jej wpisy zostaną przeniesione do kategorii{' '}
               <Text style={styles.modalTextStrong}>„Pozostałe”</Text>.
             </Text>
-
             <View style={styles.modalActions}>
-              <TouchableOpacity style={[styles.btn, styles.btnGhost]} onPress={closeDeleteModal}>
+              <TouchableOpacity style={[styles.btn, styles.btnGhost]} onPress={closeDeleteSubModal}>
                 <Text style={styles.btnGhostText}>Anuluj</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.btn, styles.btnDanger]} onPress={confirmDelete}>
-                <MaterialCommunityIcons name="trash-can-outline" size={18} color="#fff" />
+              <TouchableOpacity style={[styles.btn, styles.btnDanger]} onPress={confirmDeleteSub}>
+                <MaterialCommunityIcons name='trash-can-outline' size={18} color='#fff' />
                 <Text style={styles.btnDangerText}>Usuń</Text>
               </TouchableOpacity>
             </View>
@@ -155,8 +249,16 @@ const styles = StyleSheet.create({
   listContent: {
     paddingBottom: 24,
   },
-
-  /* modal */
+  deleteButton: {
+    backgroundColor: 'red',
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 60,
+    borderRadius: 8,
+    marginLeft: 8,
+    height: '85%',
+    alignSelf: 'center',
+  },
   modalRoot: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 1000,

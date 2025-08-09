@@ -34,10 +34,10 @@ export const CategoryEdit = ({
       <Animated.View style={[styles.deleteButton, animatedStyle]}>
         <TouchableOpacity
           onPress={() => handleDelete(entryId)}
-          accessibilityRole="button"
-          accessibilityLabel="Usuń podkategorię"
+          accessibilityRole='button'
+          accessibilityLabel='Usuń podkategorię'
         >
-          <MaterialCommunityIcons name="trash-can-outline" size={24} color="white" />
+          <MaterialCommunityIcons name='trash-can-outline' size={24} color='white' />
         </TouchableOpacity>
       </Animated.View>
     );
@@ -47,7 +47,7 @@ export const CategoryEdit = ({
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     onDeleteSub(id);
-    console.log('delete ' + id)
+    console.log('delete ' + id);
   };
 
   const handleSwipeOpen = (id: number) => {
@@ -56,7 +56,7 @@ export const CategoryEdit = ({
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }, 80);
     onDeleteSub(id);
-        console.log('delete ' + id)
+    console.log('delete ' + id);
   };
 
   const handleSwipeWillOpen = () => {
@@ -80,7 +80,7 @@ export const CategoryEdit = ({
           onPress={() => toggleExpand(item.id)}
           activeOpacity={0.8}
           onLongPress={() => handleOpenCategoryEditModal(item)}
-          accessibilityRole="button"
+          accessibilityRole='button'
         >
           <MaterialCommunityIcons name={item.icon} size={28} color={colors.primary} />
           <Text style={styles.cardName}>{item.name}</Text>
@@ -89,26 +89,38 @@ export const CategoryEdit = ({
 
       {expandedCategory === item.id && (
         <View style={styles.subList}>
-          <TouchableOpacity onPress={() => openSubEditModal(undefined)} accessibilityRole="button">
+          <TouchableOpacity onPress={() => openSubEditModal(undefined)} accessibilityRole='button'>
             <View style={styles.addSubButton}>
               <Text style={styles.addSubButtonText}>Nowa</Text>
               <MaterialCommunityIcons name={'plus'} size={20} color={colors.white} />
             </View>
           </TouchableOpacity>
 
-          {item.subcategories.map(sub => (
-            <Swipeable
-              key={sub.id}
-              renderRightActions={progress => renderRightActions(progress, sub.id)}
-              containerStyle={{ marginBottom: 10 }}
-              overshootRight={false}
-              rightThreshold={40}                 // szybciej "zatrzaśnie" delete
-              onSwipeableWillOpen={handleSwipeWillOpen}
-              onSwipeableOpen={() => handleSwipeOpen(sub.id)}  // pełny swipe w lewo = usuń
-            >
-              <SubCategoryEdit sub={sub} openSubCategoryEditModal={openSubEditModal} />
-            </Swipeable>
-          ))}
+          {item.subcategories.map(sub => {
+            const content = <SubCategoryEdit sub={sub} openSubCategoryEditModal={openSubEditModal} />;
+
+            if (sub.isDefault) {
+              return (
+                <View key={sub.id} style={{ marginBottom: 10 }}>
+                  {content}
+                </View>
+              );
+            }
+
+            return (
+              <Swipeable
+                key={sub.id}
+                renderRightActions={progress => renderRightActions(progress, sub.id)}
+                containerStyle={{ marginBottom: 10 }}
+                overshootRight={false}
+                rightThreshold={40} // szybciej "zatrzaśnie" delete
+                onSwipeableWillOpen={handleSwipeWillOpen}
+                onSwipeableOpen={() => handleSwipeOpen(sub.id)} // pełny swipe w lewo = usuń
+              >
+                {content}
+              </Swipeable>
+            );
+          })}
         </View>
       )}
     </View>
