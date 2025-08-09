@@ -75,6 +75,10 @@ export const addNewSubcategory = async (name: string, iconId: number, color: str
   return true;
 };
 
+export const deleteSubcategoryById = (subCategoryId : number) => {
+
+}
+
 export const getCategorySkeletonForSelectedmonthWrapped = async (year?: number, month?: number) => {
   try {
     return await getCategorySkeletonForSelectedmonth(year, month);

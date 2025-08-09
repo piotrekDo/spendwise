@@ -5,7 +5,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated from 'react-native-reanimated';
 import { SpendingEntry, deleteEntry } from '../services/spendingsService';
 import colors from '../config/colors';
-import { Swipeable } from 'react-native-gesture-handler';
+import Swipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 
 interface Props {
   data: SpendingEntry[];

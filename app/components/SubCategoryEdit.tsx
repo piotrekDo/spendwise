@@ -1,9 +1,9 @@
-import React from 'react';
-import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
-import { SubCategory } from './SubCategory';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { DisplayCategory, DisplaySubcategory } from '../model/Spendings';
+import React from 'react';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import colors from '../config/colors';
+import { DisplaySubcategory } from '../model/Spendings';
+import * as Haptics from 'expo-haptics';
 
 interface Props {
   sub: DisplaySubcategory;
@@ -11,18 +11,22 @@ interface Props {
 }
 
 export const SubCategoryEdit = ({ sub, openSubCategoryEditModal }: Props) => {
+  const handleOpenSubCategoryEditModal = async (item: DisplaySubcategory) => {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    setTimeout(() => {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }, 150);
+    openSubCategoryEditModal(item);
+  };
   return (
-    <View style={styles.subItem} key={sub.id}>
-      <View style={styles.subLeft}>
-        <MaterialCommunityIcons name={sub.icon} size={20} color={colors.textSecondary} />
-        <Text style={styles.subName}>{sub.name}</Text>
+    <TouchableOpacity onLongPress={() => handleOpenSubCategoryEditModal(sub)}>
+      <View style={styles.subItem} key={sub.id}>
+        <View style={styles.subLeft}>
+          <MaterialCommunityIcons name={sub.icon} size={20} color={colors.textSecondary} />
+          <Text style={styles.subName}>{sub.name}</Text>
+        </View>
       </View>
-      <View style={styles.subRight}>
-        <TouchableOpacity onPress={() => openSubCategoryEditModal(sub)}>
-          <MaterialCommunityIcons name='file-document-edit' size={26} color={colors.secondary} />
-        </TouchableOpacity>
-      </View>
-    </View>
+    </TouchableOpacity>
   );
 };
 

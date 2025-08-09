@@ -1,7 +1,6 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import React from 'react';
-import { StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { HomeScreen } from '../screens/HomeScreen';
 import routes from './routes';
@@ -10,7 +9,7 @@ import AccountNavigator from './AccountNavigator';
 
 const Tab = createBottomTabNavigator();
 
-export const AppNavigator = () => {
+export const TabsNavigator = () => {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <Tab.Navigator>
@@ -42,7 +41,3 @@ export const AppNavigator = () => {
     </GestureHandlerRootView>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {},
-});

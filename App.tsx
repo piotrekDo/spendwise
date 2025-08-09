@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react';
-import { View, ActivityIndicator } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { initDatabase } from './app/database/db';
-import { AppNavigator } from './app/navigation/AppNavigator';
 import navigationTheme from './app/navigation/navigationTheme';
+import { RootNavigator } from './app/navigation/RootNavigator';
 
 export default function App() {
   const [isDbReady, setIsDbReady] = useState(false);
@@ -19,8 +20,7 @@ export default function App() {
         console.error('DB init failed:', err);
       }
     };
-
-    init();
+    void init();
   }, []);
 
   if (!isDbReady) {
@@ -32,9 +32,11 @@ export default function App() {
   }
 
   return (
-    <NavigationContainer theme={navigationTheme}>
-      <AppNavigator />
-      <StatusBar style="light" />
-    </NavigationContainer>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <NavigationContainer theme={navigationTheme}>
+        <RootNavigator />
+        <StatusBar style="light" />
+      </NavigationContainer>
+    </GestureHandlerRootView>
   );
 }
