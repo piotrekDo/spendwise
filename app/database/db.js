@@ -6,16 +6,16 @@ export const initDatabase = async () => {
   db = await SQLite.openDatabaseAsync('budget.db');
 
   // Jednorazowe DROP-y - UWAGA: usuną WSZYSTKIE dane!
-  await db.execAsync(`
-    DROP TABLE IF EXISTS config;
-    DROP TABLE IF EXISTS entries;
-    DROP TABLE IF EXISTS subcategories;
-    DROP TABLE IF EXISTS categories;
-    DROP TABLE IF EXISTS category_limits;
-    DROP TABLE IF EXISTS preset_subcategories;
-    DROP TABLE IF EXISTS preset_categories;
-    DROP TABLE IF EXISTS app_icons;
-  `);
+  // await db.execAsync(`
+  //   DROP TABLE IF EXISTS config;
+  //   DROP TABLE IF EXISTS entries;
+  //   DROP TABLE IF EXISTS subcategories;
+  //   DROP TABLE IF EXISTS categories;
+  //   DROP TABLE IF EXISTS category_limits;
+  //   DROP TABLE IF EXISTS preset_subcategories;
+  //   DROP TABLE IF EXISTS preset_categories;
+  //   DROP TABLE IF EXISTS app_icons;
+  // `);
 
   await db.execAsync(`
     CREATE TABLE IF NOT EXISTS config (
