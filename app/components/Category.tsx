@@ -30,23 +30,23 @@ export const Category = ({ item, expanded, toggleExpand, openAddModal, openCateg
 
   const progressColor = useMemo(() => {
     if (!hasLimit) return 'transparent';
-    if (overLimit) return '#E53935';         // > 100% – czerwony
-    if (progress >= 0.8) return '#FB8C00';   // 80–100% – pomarańczowy
-    return '#43A047';                        // < 80% – zielony
+    if (overLimit) return '#E53935'; // > 100% – czerwony
+    if (progress >= 0.8) return '#FB8C00'; // 80–100% – pomarańczowy
+    return '#43A047'; // < 80% – zielony
   }, [hasLimit, progress, overLimit]);
 
   return (
     <View key={item.id}>
       <View style={styles.card}>
-        <TouchableOpacity onPress={() => openCategoryModal(item.id)} accessibilityRole="button">
+        <TouchableOpacity style={styles.cardLeft} onPress={() => openCategoryModal(item.id)} accessibilityRole='button'>
           <MaterialCommunityIcons name={item.icon} size={28} color={item.color} />
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={styles.cardLeft}
+          style={styles.cardRight}
           onPress={() => toggleExpand(item.id)}
           activeOpacity={0.8}
-          accessibilityRole="button"
+          accessibilityRole='button'
         >
           <Text style={styles.cardName}>{item.name}</Text>
           <Text style={styles.cardSum}>{item.sum.toFixed(2)} zł</Text>
@@ -62,9 +62,7 @@ export const Category = ({ item, expanded, toggleExpand, openAddModal, openCateg
             <Text style={styles.limitText}>
               {item.sum.toFixed(2)} / {(item.limit as number).toFixed(2)} zł
             </Text>
-            <Text style={[styles.limitText, { opacity: 0.8 }]}>
-              {Math.min(100, Math.round(progress * 100))}%
-            </Text>
+            <Text style={[styles.limitText, { opacity: 0.8 }]}>{Math.min(100, Math.round(progress * 100))}%</Text>
           </View>
         </View>
       )}
@@ -85,7 +83,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#22242B',
     borderRadius: 12,
     paddingHorizontal: 12,
-    paddingVertical: 12,
     marginBottom: 6,
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -93,7 +90,13 @@ const styles = StyleSheet.create({
     minHeight: 64, // wyższa karta, żeby nie było ściśnięte
   },
   cardLeft: {
+    height: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  cardRight: {
     flex: 1,
+    height: '100%',
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',

@@ -1,13 +1,15 @@
-import React, { useEffect, useState } from 'react';
-import { FlatList, PanResponder, StyleSheet, Text, View } from 'react-native';
-import { Category } from '../components/Category';
-import { NewEntryModal } from '../components/NewEntryModal';
-import colors from '../config/colors';
-import { DisplayCategory, DisplaySubcategory } from '../model/Spendings';
-import { getSelectedCategorySpendings, getSpendingsInRange, SpendingEntry } from '../services/spendingsService';
-import { CategoryDetailsModal } from '../components/CategoryDetailsModal';
 import { useFocusEffect } from '@react-navigation/native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Pressable, StyleSheet, Text, View, ScrollView } from 'react-native';
+import Constants from 'expo-constants';
+import colors from '../config/colors';
+import { Category } from '../components/Category';
+import { CategoryDetailsModal } from '../components/CategoryDetailsModal';
+import { NewEntryModal } from '../components/NewEntryModal';
+import { DisplayCategory } from '../model/Spendings';
 import { getCategorySkeletonForSelectedmonth } from '../services/categoriesService';
+import { getSelectedCategorySpendings, getSpendingsInRange, SpendingEntry } from '../services/spendingsService';
+import { getBalancesForMonth, getVaultBreakdown } from '../services/balancesService';
 
 const MONTHS = [
   'Styczeń',
@@ -23,44 +25,50 @@ const MONTHS = [
   'Listopad',
   'Grudzień',
 ];
+const RADIUS = 12;
 
 export const HomeScreen = () => {
   const [monthOffset, setMonthOffset] = useState(0);
-  const [data, setData] = useState<DisplayCategory[]>([]);
   const [skeleton, setSkeleton] = useState<DisplayCategory[]>([]);
+  const [data, setData] = useState<DisplayCategory[]>([]);
   const [expanded, setExpanded] = useState<number[]>([]);
-
   const [showModal, setShowModal] = useState(false);
   const [modalSubId, setModalSubId] = useState<number | null>(null);
-
   const [categoryDetailsData, setCategoryDetailsData] = useState<SpendingEntry[]>([]);
+  const [saldoMonth, setSaldoMonth] = useState(0);
+  const [saldoVault, setSaldoVault] = useState(0);
+  const [saldoTotal, setSaldoTotal] = useState(0);
+  const [vaultOpen, setVaultOpen] = useState(false);
+  const [vaultItems, setVaultItems] = useState<Array<{ label: string; balance: number }>>([]);
 
-  const today = new Date();
-  const current = new Date(today.getFullYear(), today.getMonth() + monthOffset);
-  const currentMonth = current.getMonth();
-  const currentYear = current.getFullYear();
+  const base = useMemo(() => new Date(), []);
+  const current = useMemo(() => new Date(base.getFullYear(), base.getMonth() + monthOffset), [base, monthOffset]);
+  const month0 = current.getMonth();
+  const month1 = month0 + 1;
+  const year = current.getFullYear();
 
-  const panResponder = PanResponder.create({
-    onMoveShouldSetPanResponder: (_, gesture) => Math.abs(gesture.dx) > 20,
-    onPanResponderRelease: (_, gesture) => {
-      if (gesture.dx > 50) setMonthOffset(prev => prev - 1);
-      else if (gesture.dx < -50) setMonthOffset(prev => prev + 1);
-    },
-  });
-
-  const toggleExpand = (id: number) => {
-    setExpanded(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]));
-  };
-
-  const getMonthDateRange = (year: number, month: number) => {
-    const start = `${year}-${String(month).padStart(2, '0')}-01`;
-    const lastDay = new Date(year, month, 0).getDate();
-    const end = `${year}-${String(month).padStart(2, '0')}-${lastDay}`;
+  const getMonthDateRange = (y: number, m0: number) => {
+    const m = m0 + 1;
+    const start = `${y}-${String(m).padStart(2, '0')}-01`;
+    const last = new Date(y, m, 0).getDate();
+    const end = `${y}-${String(m).padStart(2, '0')}-${last}`;
     return { start, end };
   };
 
+  const loadBalances = async () => {
+    const { month, vault, total } = await getBalancesForMonth(year, month1);
+    setSaldoMonth(month);
+    setSaldoVault(vault);
+    setSaldoTotal(total);
+  };
+
+  const loadVaultBreakdown = async () => {
+    const items = await getVaultBreakdown(year, month1, 12);
+    setVaultItems(items.map(i => ({ label: i.label, balance: i.balance })));
+  };
+
   const loadData = async () => {
-    const { start, end } = getMonthDateRange(currentYear, currentMonth + 1);
+    const { start, end } = getMonthDateRange(year, month0);
     const spendings: SpendingEntry[] = await getSpendingsInRange(start, end);
 
     const merged = skeleton.map(cat => {
@@ -75,24 +83,21 @@ export const HomeScreen = () => {
     setData(merged);
   };
 
-useFocusEffect(
-  React.useCallback(() => {
-    const today = new Date();
-    const current = new Date(today.getFullYear(), today.getMonth() + monthOffset);
-    const currentMonth = current.getMonth() + 1;
-    const currentYear = current.getFullYear();
-
-    getCategorySkeletonForSelectedmonth(currentYear, currentMonth).then(setSkeleton);
-  }, [monthOffset])
-);
+  useFocusEffect(
+    React.useCallback(() => {
+      getCategorySkeletonForSelectedmonth(year, month1).then(setSkeleton);
+      loadBalances();
+      setVaultOpen(false);
+    }, [year, month1])
+  );
 
   useEffect(() => {
     if (skeleton.length > 0) loadData();
-  }, [monthOffset, skeleton]);
+  }, [skeleton]);
 
-  const positiveSum = data.filter(c => c.positive).reduce((acc, curr) => acc + curr.sum, 0);
-  const negativeSum = data.filter(c => !c.positive).reduce((acc, curr) => acc + curr.sum, 0);
-  const saldo = positiveSum - negativeSum;
+  const toggleExpand = (id: number) => {
+    setExpanded(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]));
+  };
 
   const openAddModal = (subId: number) => {
     setModalSubId(subId);
@@ -100,36 +105,77 @@ useFocusEffect(
   };
 
   const openCategoryDetailsModal = async (categoryId: number) => {
-    const { start, end } = getMonthDateRange(currentYear, currentMonth + 1);
+    const { start, end } = getMonthDateRange(year, month0);
     const entries = await getSelectedCategorySpendings(categoryId, start, end);
     setCategoryDetailsData(entries);
   };
 
   return (
-    <View style={styles.container}>
-      <View {...panResponder.panHandlers} style={styles.header}>
-        <Text style={styles.monthText}>
-          {MONTHS[currentMonth]} {currentYear}
+    <View style={{ flex: 1, paddingTop: Constants.statusBarHeight, backgroundColor: colors.background }}>
+      {/* Pasek nawigacji po miesiącach */}
+      <View style={styles.navBar}>
+        <Pressable onPress={() => setMonthOffset(o => o - 1)}>
+          <Text style={styles.navArrow}>◀</Text>
+        </Pressable>
+        <Text style={styles.navTitle}>
+          {MONTHS[month0]} {year}
         </Text>
-        <View style={styles.saldoBox}>
-          <Text style={styles.saldoLabel}>Saldo</Text>
-          <Text style={styles.saldoValue}>{saldo.toFixed(2)} zł</Text>
-        </View>
+        <Pressable onPress={() => setMonthOffset(o => o + 1)}>
+          <Text style={styles.navArrow}>▶</Text>
+        </Pressable>
       </View>
-      <FlatList
-        data={data}
-        renderItem={({ item }) => (
+
+      <ScrollView contentContainerStyle={{ paddingHorizontal: 14, paddingBottom: 24 }}>
+        {/* Bufor i Całość */}
+        <View style={styles.headerBar}>
+          <Pressable
+            onPress={async () => {
+              const willOpen = !vaultOpen;
+              setVaultOpen(willOpen);
+              if (willOpen) await loadVaultBreakdown();
+            }}
+            style={[styles.smallCard, styles.vaultSmallCard]}
+          >
+            <Text style={styles.smallLabel}>Bufor</Text>
+            <Text style={styles.smallValue}>{saldoVault.toFixed(2)} zł</Text>
+          </Pressable>
+
+          <View style={[styles.smallCard, styles.totalSmallCard, { alignItems: 'flex-end' }]}>
+            <Text style={styles.smallLabel}>Całość</Text>
+            <Text style={styles.smallValue}>{saldoTotal.toFixed(2)} zł</Text>
+          </View>
+        </View>
+
+        {vaultOpen && (
+          <View style={styles.vaultDetails}>
+            {vaultItems.map((it, idx) => (
+              <View key={`${it.label}-${idx}`} style={styles.vaultItem}>
+                <Text style={styles.vaultItemLabel}>{it.label}</Text>
+                <Text style={[styles.vaultItemValue, { color: it.balance >= 0 ? '#9EE493' : '#FF7B7B' }]}>
+                  {it.balance.toFixed(2)} zł
+                </Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* Miesiąc */}
+        <View style={styles.largeMonthCard}>
+          <Text style={styles.largeLabel}>Miesiąc</Text>
+          <Text style={styles.largeValue}>{saldoMonth.toFixed(2)} zł</Text>
+        </View>
+
+        {data.map(cat => (
           <Category
-            item={item}
+            key={cat.id}
+            item={cat}
             expanded={expanded}
             toggleExpand={toggleExpand}
             openAddModal={openAddModal}
-            openCategoryModal={openCategoryDetailsModal}
+            openCategoryModal={() => openCategoryDetailsModal(cat.id)}
           />
-        )}
-        keyExtractor={item => item.id.toString()}
-        contentContainerStyle={{ paddingBottom: 20 }}
-      />
+        ))}
+      </ScrollView>
 
       {showModal && modalSubId !== null && (
         <NewEntryModal
@@ -139,6 +185,8 @@ useFocusEffect(
           onSave={async () => {
             setShowModal(false);
             await loadData();
+            await loadBalances();
+            if (vaultOpen) await loadVaultBreakdown();
           }}
         />
       )}
@@ -147,9 +195,11 @@ useFocusEffect(
         <CategoryDetailsModal
           data={categoryDetailsData}
           onClose={() => setCategoryDetailsData([])}
-          onRefresh={entryId => {
-            loadData();
-            setCategoryDetailsData(s => s.filter(c => c.id != entryId));
+          onRefresh={async entryId => {
+            await loadData();
+            await loadBalances();
+            if (vaultOpen) await loadVaultBreakdown();
+            setCategoryDetailsData(s => s.filter(c => c.id !== entryId));
           }}
         />
       )}
@@ -158,40 +208,48 @@ useFocusEffect(
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-    paddingHorizontal: 15,
-    paddingTop: 40,
+  navBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    alignItems: 'center',
+    backgroundColor: '#1c2a38',
   },
-  header: {
+  navArrow: { color: colors.white, fontSize: 20 },
+  navTitle: { color: colors.white, fontSize: 18, fontWeight: '700' },
+  headerBar: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8, gap: 10, marginTop: 5 },
+  smallCard: {
+    flex: 1,
+    width: 100,
+    padding: 6,
+    borderRadius: RADIUS,
+    backgroundColor: '#23303d',
+  },
+  smallLabel: { color: colors.white, opacity: 0.85, fontSize: 11 },
+  smallValue: { color: colors.white, fontSize: 12, fontWeight: '700', marginTop: 2 },
+  vaultSmallCard: { backgroundColor: '#1565c0' },
+  totalSmallCard: { backgroundColor: '#b28704' },
+  vaultDetails: {
+    backgroundColor: '#0e2433',
+    borderRadius: RADIUS,
+    padding: 8,
+    marginBottom: 10,
+  },
+  vaultItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 4,
+  },
+  vaultItemLabel: { color: colors.white },
+  vaultItemValue: { fontWeight: '700' },
+  largeMonthCard: {
+    backgroundColor: '#2e7d32',
+    borderRadius: RADIUS,
+    padding: 12,
     alignItems: 'center',
     marginBottom: 10,
-    width: '100%',
   },
-  monthText: {
-    fontSize: 25,
-    color: colors.white,
-    fontWeight: 'bold',
-    marginVertical: 10,
-  },
-  saldoBox: {
-    padding: 10,
-    backgroundColor: colors.secondary,
-    borderRadius: 10,
-    marginBottom: 20,
-    alignItems: 'center',
-    width: '100%',
-  },
-  saldoLabel: {
-    color: colors.white,
-    fontSize: 16,
-    opacity: 0.8,
-  },
-  saldoValue: {
-    color: colors.white,
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginTop: 5,
-  },
+  largeLabel: { color: colors.white, opacity: 0.85, fontSize: 12 },
+  largeValue: { color: colors.white, fontSize: 20, fontWeight: '700', marginTop: 2 },
 });

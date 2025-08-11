@@ -4,43 +4,71 @@ let db = null;
 
 export const initDatabase = async () => {
   db = await SQLite.openDatabaseAsync('budget.db');
-
-  // Jednorazowe DROP-y - UWAGA: usuną WSZYSTKIE dane!
-  // await db.execAsync(`
-  //   DROP TABLE IF EXISTS config;
-  //   DROP TABLE IF EXISTS entries;
-  //   DROP TABLE IF EXISTS subcategories;
-  //   DROP TABLE IF EXISTS categories;
-  //   DROP TABLE IF EXISTS category_limits;
-  //   DROP TABLE IF EXISTS preset_subcategories;
-  //   DROP TABLE IF EXISTS preset_categories;
-  //   DROP TABLE IF EXISTS app_icons;
-  // `);
+  await db.execAsync(`PRAGMA foreign_keys = ON;`);
 
   await db.execAsync(`
+    DROP TABLE IF EXISTS preset_subcategories;
+    DROP TABLE IF EXISTS preset_categories;
+    DROP TABLE IF EXISTS category_limits;
+    DROP TABLE IF EXISTS monthly_aggregates;
+    DROP TABLE IF EXISTS envelope_transfers;
+    DROP TABLE IF EXISTS envelopes;
+    DROP TABLE IF EXISTS entries;
+    DROP TABLE IF EXISTS subcategories;
+    DROP TABLE IF EXISTS categories;
+    DROP TABLE IF EXISTS category_limits;
+    DROP TABLE IF EXISTS app_icons;
+    DROP TABLE IF EXISTS config;
+  `);
+
+  await db.execAsync(`
+    ------------------------------
+    -- Konfiguracja
+    ------------------------------
     CREATE TABLE IF NOT EXISTS config (
-      key TEXT PRIMARY KEY,
+      key   TEXT PRIMARY KEY,
       value TEXT NOT NULL
     );
 
+    ------------------------------
+    -- Ikony (UI)
+    ------------------------------
     CREATE TABLE IF NOT EXISTS app_icons (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id   INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL UNIQUE
     );
 
+    ------------------------------
+    -- Kategorie / Podkategorie
+    -- positive: 1=dochód, 0=wydatek
+    -- isDefault: narzucona systemowo
+    ------------------------------
     CREATE TABLE IF NOT EXISTS categories (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      iconId INTEGER NOT NULL,
-      color TEXT NOT NULL,
-      positive INTEGER NOT NULL DEFAULT 0,
-      isDefault INTEGER NOT NULL DEFAULT 0,
+      id        INTEGER PRIMARY KEY AUTOINCREMENT,
+      name      TEXT NOT NULL,
+      iconId    INTEGER,
+      color     TEXT NOT NULL DEFAULT '#9E9E9E',
+      positive  INTEGER NOT NULL DEFAULT 0 CHECK (positive IN (0,1)),
+      isDefault INTEGER NOT NULL DEFAULT 0 CHECK (isDefault IN (0,1)),
       FOREIGN KEY (iconId) REFERENCES app_icons(id)
     );
 
-    CREATE INDEX IF NOT EXISTS idx_categories_iconId ON categories(iconId);
-    CREATE INDEX IF NOT EXISTS idx_categories_positive_default ON categories(positive, isDefault);
+    CREATE TABLE IF NOT EXISTS subcategories (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      name        TEXT NOT NULL,
+      iconId      INTEGER,
+      color       TEXT NOT NULL DEFAULT '#9E9E9E',
+      categoryId  INTEGER NOT NULL,
+      isDefault   INTEGER NOT NULL DEFAULT 0 CHECK (isDefault IN (0,1)),
+      FOREIGN KEY (iconId) REFERENCES app_icons(id),
+      FOREIGN KEY (categoryId) REFERENCES categories(id)
+    );
 
+    CREATE INDEX IF NOT EXISTS idx_subcategories_categoryId ON subcategories(categoryId);
+
+    ------------------------------
+    -- Limity kategorii
+    ------------------------------
     CREATE TABLE IF NOT EXISTS category_limits (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       categoryId INTEGER NOT NULL,
@@ -50,56 +78,92 @@ export const initDatabase = async () => {
       FOREIGN KEY (categoryId) REFERENCES categories(id)
     );
 
-    -- 🔥 Jednoznaczność limitów per kategoria i poziom (global/rok/miesiąc)
-    -- Globalny: tylko 1 rekord z (year IS NULL AND month IS NULL) per categoryId
     CREATE UNIQUE INDEX IF NOT EXISTS ux_cat_limits_global
-    ON category_limits(categoryId)
-    WHERE year IS NULL AND month IS NULL;
+      ON category_limits(categoryId)
+      WHERE year IS NULL AND month IS NULL;
 
-    -- Roczny: tylko 1 rekord z (konkretny year, month IS NULL) per categoryId
     CREATE UNIQUE INDEX IF NOT EXISTS ux_cat_limits_year
-    ON category_limits(categoryId, year)
-    WHERE month IS NULL AND year IS NOT NULL;
+      ON category_limits(categoryId, year)
+      WHERE month IS NULL AND year IS NOT NULL;
 
-    -- Miesięczny: tylko 1 rekord z (konkretny year, month) per categoryId
     CREATE UNIQUE INDEX IF NOT EXISTS ux_cat_limits_month
-    ON category_limits(categoryId, year, month)
-    WHERE month IS NOT NULL;
+      ON category_limits(categoryId, year, month)
+      WHERE month IS NOT NULL;
 
-    -- Indeks do szybkich zapytań z priorytetami (year,month)
     CREATE INDEX IF NOT EXISTS idx_category_limits_cat_year_month
-    ON category_limits(categoryId, year, month);
+      ON category_limits(categoryId, year, month);
 
-    CREATE TABLE IF NOT EXISTS subcategories (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      iconId INTEGER NOT NULL,
-      color TEXT NOT NULL,
-      categoryId INTEGER NOT NULL,
-      isDefault INTEGER NOT NULL DEFAULT 0,
-      FOREIGN KEY (iconId) REFERENCES app_icons(id),
-      FOREIGN KEY (categoryId) REFERENCES categories(id)
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_subcategories_categoryId ON subcategories(categoryId);
-    CREATE INDEX IF NOT EXISTS idx_subcategories_iconId ON subcategories(iconId);
-    CREATE INDEX IF NOT EXISTS idx_subcategories_category_default ON subcategories(categoryId, isDefault);
 
     CREATE TABLE IF NOT EXISTS entries (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      amount REAL NOT NULL,
-      description TEXT,
-      date TEXT NOT NULL,              -- ISO YYYY-MM-DD
-      subcategoryId INTEGER NOT NULL,
-      isArchived INTEGER NOT NULL DEFAULT 0,
+      id             INTEGER PRIMARY KEY AUTOINCREMENT,
+      date           TEXT    NOT NULL, -- ISO YYYY-MM-DD
+      amount         REAL    NOT NULL CHECK (amount >= 0),
+      subcategoryId  INTEGER NOT NULL,
+      description    TEXT,
+      isArchived     INTEGER NOT NULL DEFAULT 0 CHECK (isArchived IN (0,1)),
       FOREIGN KEY (subcategoryId) REFERENCES subcategories(id)
     );
 
-    CREATE INDEX IF NOT EXISTS idx_entries_subcategoryId ON entries(subcategoryId);
     CREATE INDEX IF NOT EXISTS idx_entries_date ON entries(date);
-    CREATE INDEX IF NOT EXISTS idx_entries_subcategory_date ON entries(subcategoryId, date);
+    CREATE INDEX IF NOT EXISTS idx_entries_subcategoryId ON entries(subcategoryId);
     CREATE INDEX IF NOT EXISTS idx_entries_archived ON entries(isArchived);
 
+    ------------------------------
+    -- Koperty (fundusze ciągłe)
+    -- isBuffer=1 => specjalna koperta „Bufor operacyjny” (unikat)
+    ------------------------------
+    CREATE TABLE IF NOT EXISTS envelopes (
+      id        INTEGER PRIMARY KEY AUTOINCREMENT,
+      name      TEXT NOT NULL UNIQUE,
+      iconId    INTEGER,
+      color     TEXT NOT NULL DEFAULT '#4F7CAC',
+      target    REAL,
+      isBuffer  INTEGER NOT NULL DEFAULT 0 CHECK (isBuffer IN (0,1)),
+      FOREIGN KEY (iconId) REFERENCES app_icons(id)
+    );
+
+    CREATE UNIQUE INDEX IF NOT EXISTS ux_envelopes_buffer ON envelopes(isBuffer) WHERE isBuffer=1;
+
+    ------------------------------
+    -- Transfery kopert
+    -- NULL -> envelope     : zasilenie koperty z budżetu miesiąca (alokacja)
+    -- envelope -> NULL     : wypłata z koperty „na świat” (np. pokrycie)
+    -- envelope -> envelope : przesunięcie między kopertami
+    ------------------------------
+    CREATE TABLE IF NOT EXISTS envelope_transfers (
+      id               INTEGER PRIMARY KEY AUTOINCREMENT,
+      date             TEXT    NOT NULL, -- ISO YYYY-MM-DD
+      fromEnvelopeId   INTEGER,
+      toEnvelopeId     INTEGER,
+      amount           REAL    NOT NULL CHECK (amount > 0),
+      note             TEXT,
+      FOREIGN KEY (fromEnvelopeId) REFERENCES envelopes(id),
+      FOREIGN KEY (toEnvelopeId)   REFERENCES envelopes(id),
+      CHECK (NOT (fromEnvelopeId IS NULL AND toEnvelopeId IS NULL))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_transfers_date ON envelope_transfers(date);
+    CREATE INDEX IF NOT EXISTS idx_transfers_from ON envelope_transfers(fromEnvelopeId, date);
+    CREATE INDEX IF NOT EXISTS idx_transfers_to   ON envelope_transfers(toEnvelopeId, date);
+
+    ------------------------------
+    -- Miesięczne agregaty (aktualizowane triggerami)
+    ------------------------------
+    CREATE TABLE IF NOT EXISTS monthly_aggregates (
+      year                    INTEGER NOT NULL,
+      month                   INTEGER NOT NULL CHECK (month BETWEEN 1 AND 12),
+      income_total            REAL NOT NULL DEFAULT 0,
+      expense_total           REAL NOT NULL DEFAULT 0,
+      fund_in_total           REAL NOT NULL DEFAULT 0,
+      fund_out_total          REAL NOT NULL DEFAULT 0,
+      covered_from_buffer     REAL NOT NULL DEFAULT 0,
+      PRIMARY KEY (year, month)
+    );
+
+
+    ------------------------------
+    -- Presety
+    ------------------------------
     CREATE TABLE IF NOT EXISTS preset_categories (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
@@ -117,11 +181,173 @@ export const initDatabase = async () => {
       color TEXT NOT NULL,
       categoryId INTEGER NOT NULL,
       isDefault INTEGER NOT NULL DEFAULT 0,
-      FOREIGN KEY (iconId) REFERENCES app_icons(id),
-      FOREIGN KEY (categoryId) REFERENCES categories(id)
+      FOREIGN KEY (iconId) REFERENCES app_icons(id)
     );
   `);
 
+  
+
+  // --- TRIGGERS: ENTRIES ---
+  // Zmiany w entries wpływają na income_total/expense_total przez JOIN do categories.positive
+  await db.execAsync(`
+-- AFTER INSERT
+CREATE TRIGGER IF NOT EXISTS trg_entries_ai
+AFTER INSERT ON entries
+BEGIN
+  INSERT INTO monthly_aggregates(year, month, income_total, expense_total)
+  VALUES (
+    CAST(strftime('%Y', NEW.date) AS INTEGER),
+    CAST(strftime('%m', NEW.date) AS INTEGER),
+    CASE WHEN (SELECT c.positive
+               FROM subcategories s JOIN categories c ON c.id = s.categoryId
+               WHERE s.id = NEW.subcategoryId) = 1 THEN NEW.amount ELSE 0 END,
+    CASE WHEN (SELECT c.positive
+               FROM subcategories s JOIN categories c ON c.id = s.categoryId
+               WHERE s.id = NEW.subcategoryId) = 0 THEN NEW.amount ELSE 0 END
+  )
+  ON CONFLICT(year, month) DO UPDATE SET
+    income_total  = income_total  + CASE WHEN (SELECT c.positive FROM subcategories s JOIN categories c ON c.id = s.categoryId WHERE s.id = NEW.subcategoryId) = 1 THEN NEW.amount ELSE 0 END,
+    expense_total = expense_total + CASE WHEN (SELECT c.positive FROM subcategories s JOIN categories c ON c.id = s.categoryId WHERE s.id = NEW.subcategoryId) = 0 THEN NEW.amount ELSE 0 END;
+END;
+
+
+-- AFTER DELETE
+CREATE TRIGGER IF NOT EXISTS trg_entries_ad
+AFTER DELETE ON entries
+BEGIN
+  INSERT INTO monthly_aggregates(year, month, income_total, expense_total)
+  VALUES (
+    CAST(strftime('%Y', OLD.date) AS INTEGER),
+    CAST(strftime('%m', OLD.date) AS INTEGER),
+    CASE WHEN (SELECT c.positive
+               FROM subcategories s JOIN categories c ON c.id = s.categoryId
+               WHERE s.id = OLD.subcategoryId) = 1 THEN -OLD.amount ELSE 0 END,
+    CASE WHEN (SELECT c.positive
+               FROM subcategories s JOIN categories c ON c.id = s.categoryId
+               WHERE s.id = OLD.subcategoryId) = 0 THEN -OLD.amount ELSE 0 END
+  )
+  ON CONFLICT(year, month) DO UPDATE SET
+    income_total  = income_total  + CASE WHEN (SELECT c.positive FROM subcategories s JOIN categories c ON c.id = s.categoryId WHERE s.id = OLD.subcategoryId) = 1 THEN -OLD.amount ELSE 0 END,
+    expense_total = expense_total + CASE WHEN (SELECT c.positive FROM subcategories s JOIN categories c ON c.id = s.categoryId WHERE s.id = OLD.subcategoryId) = 0 THEN -OLD.amount ELSE 0 END;
+END;
+
+
+-- AFTER UPDATE — tylko gdy zmienia się amount
+CREATE TRIGGER IF NOT EXISTS trg_entries_au
+AFTER UPDATE OF amount ON entries
+WHEN OLD.amount != NEW.amount
+BEGIN
+  -- Odejmij stary wpływ
+  INSERT INTO monthly_aggregates(year, month, income_total, expense_total)
+  VALUES (
+    CAST(strftime('%Y', OLD.date) AS INTEGER),
+    CAST(strftime('%m', OLD.date) AS INTEGER),
+    CASE WHEN (SELECT c.positive FROM subcategories s JOIN categories c ON c.id = s.categoryId WHERE s.id = OLD.subcategoryId) = 1 THEN -OLD.amount ELSE 0 END,
+    CASE WHEN (SELECT c.positive FROM subcategories s JOIN categories c ON c.id = s.categoryId WHERE s.id = OLD.subcategoryId) = 0 THEN -OLD.amount ELSE 0 END
+  )
+  ON CONFLICT(year, month) DO UPDATE SET
+    income_total  = income_total  + CASE WHEN (SELECT c.positive FROM subcategories s JOIN categories c ON c.id = s.categoryId WHERE s.id = OLD.subcategoryId) = 1 THEN -OLD.amount ELSE 0 END,
+    expense_total = expense_total + CASE WHEN (SELECT c.positive FROM subcategories s JOIN categories c ON c.id = s.categoryId WHERE s.id = OLD.subcategoryId) = 0 THEN -OLD.amount ELSE 0 END;
+
+  -- Dodaj nowy wpływ
+  INSERT INTO monthly_aggregates(year, month, income_total, expense_total)
+  VALUES (
+    CAST(strftime('%Y', NEW.date) AS INTEGER),
+    CAST(strftime('%m', NEW.date) AS INTEGER),
+    CASE WHEN (SELECT c.positive FROM subcategories s JOIN categories c ON c.id = s.categoryId WHERE s.id = NEW.subcategoryId) = 1 THEN NEW.amount ELSE 0 END,
+    CASE WHEN (SELECT c.positive FROM subcategories s JOIN categories c ON c.id = s.categoryId WHERE s.id = NEW.subcategoryId) = 0 THEN NEW.amount ELSE 0 END
+  )
+  ON CONFLICT(year, month) DO UPDATE SET
+    income_total  = income_total  + CASE WHEN (SELECT c.positive FROM subcategories s JOIN categories c ON c.id = s.categoryId WHERE s.id = NEW.subcategoryId) = 1 THEN NEW.amount ELSE 0 END,
+    expense_total = expense_total + CASE WHEN (SELECT c.positive FROM subcategories s JOIN categories c ON c.id = s.categoryId WHERE s.id = NEW.subcategoryId) = 0 THEN NEW.amount ELSE 0 END;
+END;
+  `);
+
+  // --- TRIGGERS: ENVELOPE TRANSFERS ---
+  // NULL->env => fund_in_total+, env->NULL => fund_out_total+, a jeśli from isBuffer=1 => covered_from_buffer+
+  await db.execAsync(`
+    CREATE TRIGGER IF NOT EXISTS trg_transfers_ai
+    AFTER INSERT ON envelope_transfers
+    BEGIN
+      -- Alokacja do koperty
+      INSERT INTO monthly_aggregates(year, month, fund_in_total)
+      SELECT CAST(strftime('%Y', NEW.date) AS INTEGER), CAST(strftime('%m', NEW.date) AS INTEGER), NEW.amount
+      WHERE NEW.fromEnvelopeId IS NULL AND NEW.toEnvelopeId IS NOT NULL
+      ON CONFLICT(year, month) DO UPDATE SET fund_in_total = fund_in_total + NEW.amount;
+
+      -- Wypłata z koperty
+      INSERT INTO monthly_aggregates(year, month, fund_out_total, covered_from_buffer)
+      SELECT
+        CAST(strftime('%Y', NEW.date) AS INTEGER),
+        CAST(strftime('%m', NEW.date) AS INTEGER),
+        NEW.amount,
+        CASE WHEN (SELECT isBuffer FROM envelopes WHERE id=NEW.fromEnvelopeId)=1 THEN NEW.amount ELSE 0 END
+      WHERE NEW.fromEnvelopeId IS NOT NULL AND NEW.toEnvelopeId IS NULL
+      ON CONFLICT(year, month) DO UPDATE SET
+        fund_out_total = fund_out_total + NEW.amount,
+        covered_from_buffer = covered_from_buffer + CASE WHEN (SELECT isBuffer FROM envelopes WHERE id=NEW.fromEnvelopeId)=1 THEN NEW.amount ELSE 0 END;
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS trg_transfers_ad
+    AFTER DELETE ON envelope_transfers
+    BEGIN
+      -- Rewers alokacji
+      INSERT INTO monthly_aggregates(year, month, fund_in_total)
+      SELECT CAST(strftime('%Y', OLD.date) AS INTEGER), CAST(strftime('%m', OLD.date) AS INTEGER), -OLD.amount
+      WHERE OLD.fromEnvelopeId IS NULL AND OLD.toEnvelopeId IS NOT NULL
+      ON CONFLICT(year, month) DO UPDATE SET fund_in_total = fund_in_total - OLD.amount;
+
+      -- Rewers wypłaty
+      INSERT INTO monthly_aggregates(year, month, fund_out_total, covered_from_buffer)
+      SELECT
+        CAST(strftime('%Y', OLD.date) AS INTEGER),
+        CAST(strftime('%m', OLD.date) AS INTEGER),
+        -OLD.amount,
+        CASE WHEN (SELECT isBuffer FROM envelopes WHERE id=OLD.fromEnvelopeId)=1 THEN -OLD.amount ELSE 0 END
+      WHERE OLD.fromEnvelopeId IS NOT NULL AND OLD.toEnvelopeId IS NULL
+      ON CONFLICT(year, month) DO UPDATE SET
+        fund_out_total = fund_out_total - OLD.amount,
+        covered_from_buffer = covered_from_buffer + CASE WHEN (SELECT isBuffer FROM envelopes WHERE id=OLD.fromEnvelopeId)=1 THEN -OLD.amount ELSE 0 END;
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS trg_transfers_au
+    AFTER UPDATE OF date, fromEnvelopeId, toEnvelopeId, amount ON envelope_transfers
+    BEGIN
+      -- odejmij stary wpływ
+      INSERT INTO monthly_aggregates(year, month, fund_in_total)
+      SELECT CAST(strftime('%Y', OLD.date) AS INTEGER), CAST(strftime('%m', OLD.date) AS INTEGER), -OLD.amount
+      WHERE OLD.fromEnvelopeId IS NULL AND OLD.toEnvelopeId IS NOT NULL
+      ON CONFLICT(year, month) DO UPDATE SET fund_in_total = fund_in_total - OLD.amount;
+
+      INSERT INTO monthly_aggregates(year, month, fund_out_total, covered_from_buffer)
+      SELECT
+        CAST(strftime('%Y', OLD.date) AS INTEGER),
+        CAST(strftime('%m', OLD.date) AS INTEGER),
+        -OLD.amount,
+        CASE WHEN (SELECT isBuffer FROM envelopes WHERE id=OLD.fromEnvelopeId)=1 THEN -OLD.amount ELSE 0 END
+      WHERE OLD.fromEnvelopeId IS NOT NULL AND OLD.toEnvelopeId IS NULL
+      ON CONFLICT(year, month) DO UPDATE SET
+        fund_out_total = fund_out_total - OLD.amount,
+        covered_from_buffer = covered_from_buffer + CASE WHEN (SELECT isBuffer FROM envelopes WHERE id=OLD.fromEnvelopeId)=1 THEN -OLD.amount ELSE 0 END;
+
+      -- dodaj nowy wpływ
+      INSERT INTO monthly_aggregates(year, month, fund_in_total)
+      SELECT CAST(strftime('%Y', NEW.date) AS INTEGER), CAST(strftime('%m', NEW.date) AS INTEGER), NEW.amount
+      WHERE NEW.fromEnvelopeId IS NULL AND NEW.toEnvelopeId IS NOT NULL
+      ON CONFLICT(year, month) DO UPDATE SET fund_in_total = fund_in_total + NEW.amount;
+
+      INSERT INTO monthly_aggregates(year, month, fund_out_total, covered_from_buffer)
+      SELECT
+        CAST(strftime('%Y', NEW.date) AS INTEGER),
+        CAST(strftime('%m', NEW.date) AS INTEGER),
+        NEW.amount,
+        CASE WHEN (SELECT isBuffer FROM envelopes WHERE id=NEW.fromEnvelopeId)=1 THEN NEW.amount ELSE 0 END
+      WHERE NEW.fromEnvelopeId IS NOT NULL AND NEW.toEnvelopeId IS NULL
+      ON CONFLICT(year, month) DO UPDATE SET
+        fund_out_total = fund_out_total + NEW.amount,
+        covered_from_buffer = covered_from_buffer + CASE WHEN (SELECT isBuffer FROM envelopes WHERE id=NEW.fromEnvelopeId)=1 THEN NEW.amount ELSE 0 END;
+    END;
+  `);
   await insertInitialData();
   await checAndInsertPresetData();
 };
@@ -236,13 +462,6 @@ const insertInitialData = async () => {
   for (const name of icons) {
     await db.runAsync(`INSERT OR IGNORE INTO app_icons (name) VALUES (?)`, [name]);
   }
-
-  // Pobrane ID-ki ikon do mapowania (ikonki muszą już istnieć)
-  const iconIdMap = {};
-  const rows = await db.getAllAsync(`SELECT id, name FROM app_icons`);
-  rows.forEach(row => {
-    iconIdMap[row.name] = row.id;
-  });
 
   await db.runAsync(
     `INSERT INTO categories (id, name, iconId, color, positive, isDefault) VALUES (1, 'Dochód', 1, '#4CAF50', 1, 1)`
