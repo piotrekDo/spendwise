@@ -3,10 +3,11 @@ import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import colors from '../config/colors';
 import { DisplaySubcategory } from '../model/Spendings';
+import { ENVELOPE_FUND_SUBCAT_ID } from '../config/constants';
 
 interface Props {
   sub: DisplaySubcategory;
-  openAddModal: (subId: number) => void
+  openAddModal: (subId: number) => void;
 }
 
 export const SubCategory = ({ sub, openAddModal }: Props) => {
@@ -19,11 +20,12 @@ export const SubCategory = ({ sub, openAddModal }: Props) => {
       <View style={styles.subRight}>
         <Text style={styles.subSum}>{sub.sum} zł</Text>
         <TouchableOpacity
+          disabled={sub.id === ENVELOPE_FUND_SUBCAT_ID}
           onPress={() => {
             openAddModal(sub.id);
           }}
         >
-          <MaterialCommunityIcons name='plus-circle-outline' size={26} color={colors.primary} />
+          <MaterialCommunityIcons name='plus-circle-outline' size={26} color={sub.id !== ENVELOPE_FUND_SUBCAT_ID ? colors.primary : 'rgba(54, 192, 36, 0.3)'} />
         </TouchableOpacity>
       </View>
     </View>

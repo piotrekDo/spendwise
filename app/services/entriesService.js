@@ -1,4 +1,4 @@
-import { getDb } from './db';
+import { getDb } from '../database/db';
 
 export const addEntry = async (subcategoryId, amount, description, date) => {
   const db = getDb();

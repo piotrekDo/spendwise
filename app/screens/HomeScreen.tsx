@@ -1,6 +1,6 @@
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import React, { useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View, ScrollView } from 'react-native';
+import { Pressable, StyleSheet, Text, View, ScrollView, TouchableOpacity } from 'react-native';
 import Constants from 'expo-constants';
 import colors from '../config/colors';
 import { Category } from '../components/Category';
@@ -10,6 +10,8 @@ import { DisplayCategory } from '../model/Spendings';
 import { getCategorySkeletonForSelectedmonth } from '../services/categoriesService';
 import { getSelectedCategorySpendings, getSpendingsInRange, SpendingEntry } from '../services/spendingsService';
 import { getBalancesForMonth, getVaultBreakdown } from '../services/balancesService';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import routes from '../navigation/routes';
 
 const MONTHS = [
   'Styczeń',
@@ -28,6 +30,7 @@ const MONTHS = [
 const RADIUS = 12;
 
 export const HomeScreen = () => {
+  const navigation = useNavigation<any>();
   const [monthOffset, setMonthOffset] = useState(0);
   const [skeleton, setSkeleton] = useState<DisplayCategory[]>([]);
   const [data, setData] = useState<DisplayCategory[]>([]);
@@ -110,6 +113,10 @@ export const HomeScreen = () => {
     setCategoryDetailsData(entries);
   };
 
+  const openEnvelopesModal = () => {
+    navigation.navigate(routes.MODAL_ENVELOPES_HOME as any, { month1, year });
+  };
+
   return (
     <View style={{ flex: 1, paddingTop: Constants.statusBarHeight, backgroundColor: colors.background }}>
       {/* Pasek nawigacji po miesiącach */}
@@ -163,6 +170,9 @@ export const HomeScreen = () => {
         <View style={styles.largeMonthCard}>
           <Text style={styles.largeLabel}>Miesiąc</Text>
           <Text style={styles.largeValue}>{saldoMonth.toFixed(2)} zł</Text>
+          <TouchableOpacity style={styles.envelopeButton} onPress={openEnvelopesModal}>
+            <MaterialCommunityIcons name='email-outline' size={40} color={colors.white} />
+          </TouchableOpacity>
         </View>
 
         {data.map(cat => (
@@ -249,7 +259,19 @@ const styles = StyleSheet.create({
     padding: 12,
     alignItems: 'center',
     marginBottom: 10,
+    overflow: 'hidden',
   },
   largeLabel: { color: colors.white, opacity: 0.85, fontSize: 12 },
   largeValue: { color: colors.white, fontSize: 20, fontWeight: '700', marginTop: 2 },
+  envelopeButton: {
+    backgroundColor: '#1565c0',
+    width: 100,
+    height: 100,
+    borderRadius: '50%',
+    position: 'absolute',
+    right: -10,
+    bottom: -10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
 });

@@ -1,4 +1,5 @@
 import * as SQLite from 'expo-sqlite';
+import { ENVELOPE_FUND_SUBCAT_ID, OTHER_INCOME_SUBCAT_ID } from '../config/constants';
 
 let db = null;
 
@@ -12,11 +13,10 @@ export const initDatabase = async () => {
     DROP TABLE IF EXISTS category_limits;
     DROP TABLE IF EXISTS monthly_aggregates;
     DROP TABLE IF EXISTS envelope_transfers;
-    DROP TABLE IF EXISTS envelopes;
     DROP TABLE IF EXISTS entries;
+    DROP TABLE IF EXISTS envelopes;
     DROP TABLE IF EXISTS subcategories;
     DROP TABLE IF EXISTS categories;
-    DROP TABLE IF EXISTS category_limits;
     DROP TABLE IF EXISTS app_icons;
     DROP TABLE IF EXISTS config;
   `);
@@ -94,23 +94,40 @@ export const initDatabase = async () => {
       ON category_limits(categoryId, year, month);
 
 
+    ------------------------------
+    -- Entries (z obsługą kopert)
+    ------------------------------
     CREATE TABLE IF NOT EXISTS entries (
-      id             INTEGER PRIMARY KEY AUTOINCREMENT,
-      date           TEXT    NOT NULL, -- ISO YYYY-MM-DD
-      amount         REAL    NOT NULL CHECK (amount >= 0),
-      subcategoryId  INTEGER NOT NULL,
-      description    TEXT,
-      isArchived     INTEGER NOT NULL DEFAULT 0 CHECK (isArchived IN (0,1)),
+      id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+      date               TEXT    NOT NULL, -- ISO YYYY-MM-DD
+      amount             REAL    NOT NULL CHECK (amount >= 0),
+      subcategoryId      INTEGER NOT NULL,
+      description        TEXT,
+      isArchived         INTEGER NOT NULL DEFAULT 0 CHECK (isArchived IN (0,1)),
+
+      -- jeśli to wpłata DO koperty: wskazuje kopertę, subcategoryId MUSI być ENVELOPE_FUND_SUBCAT_ID
+      depositEnvelopeId  INTEGER REFERENCES envelopes(id) ON DELETE RESTRICT,
+
+      -- jeśli to zakup FINANSOWANY z koperty: wskazuje kopertę; taki wpis NIE wpływa na monthly_aggregates
+      financedEnvelopeId INTEGER REFERENCES envelopes(id) ON DELETE RESTRICT,
+
+      -- nie można mieć jednocześnie wpłaty i finansowania
+      CHECK (NOT (depositEnvelopeId IS NOT NULL AND financedEnvelopeId IS NOT NULL)),
+
+      -- jeżeli to wpłata do koperty, to subkategoria musi być „Zasilenia kopert”
+      CHECK (depositEnvelopeId IS NULL OR subcategoryId = ${ENVELOPE_FUND_SUBCAT_ID}),
+
       FOREIGN KEY (subcategoryId) REFERENCES subcategories(id)
     );
 
-    CREATE INDEX IF NOT EXISTS idx_entries_date ON entries(date);
+    CREATE INDEX IF NOT EXISTS idx_entries_date          ON entries(date);
     CREATE INDEX IF NOT EXISTS idx_entries_subcategoryId ON entries(subcategoryId);
-    CREATE INDEX IF NOT EXISTS idx_entries_archived ON entries(isArchived);
+    CREATE INDEX IF NOT EXISTS idx_entries_archived      ON entries(isArchived);
+    CREATE INDEX IF NOT EXISTS idx_entries_dep_env       ON entries(depositEnvelopeId);
+    CREATE INDEX IF NOT EXISTS idx_entries_fin_env       ON entries(financedEnvelopeId);
 
     ------------------------------
-    -- Koperty (fundusze ciągłe)
-    -- isBuffer=1 => specjalna koperta „Bufor operacyjny” (unikat)
+    -- Koperty
     ------------------------------
     CREATE TABLE IF NOT EXISTS envelopes (
       id        INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -118,36 +135,14 @@ export const initDatabase = async () => {
       iconId    INTEGER,
       color     TEXT NOT NULL DEFAULT '#4F7CAC',
       target    REAL,
-      isBuffer  INTEGER NOT NULL DEFAULT 0 CHECK (isBuffer IN (0,1)),
+      saldo     REAL,
+      finished  TEXT DEFAULT NULL, -- ISO YYYY-MM-DD (cel osiągnięty)
+      closed    TEXT DEFAULT NULL, -- rozwiązana bez realizacji celu
       FOREIGN KEY (iconId) REFERENCES app_icons(id)
     );
 
-    CREATE UNIQUE INDEX IF NOT EXISTS ux_envelopes_buffer ON envelopes(isBuffer) WHERE isBuffer=1;
-
     ------------------------------
-    -- Transfery kopert
-    -- NULL -> envelope     : zasilenie koperty z budżetu miesiąca (alokacja)
-    -- envelope -> NULL     : wypłata z koperty „na świat” (np. pokrycie)
-    -- envelope -> envelope : przesunięcie między kopertami
-    ------------------------------
-    CREATE TABLE IF NOT EXISTS envelope_transfers (
-      id               INTEGER PRIMARY KEY AUTOINCREMENT,
-      date             TEXT    NOT NULL, -- ISO YYYY-MM-DD
-      fromEnvelopeId   INTEGER,
-      toEnvelopeId     INTEGER,
-      amount           REAL    NOT NULL CHECK (amount > 0),
-      note             TEXT,
-      FOREIGN KEY (fromEnvelopeId) REFERENCES envelopes(id),
-      FOREIGN KEY (toEnvelopeId)   REFERENCES envelopes(id),
-      CHECK (NOT (fromEnvelopeId IS NULL AND toEnvelopeId IS NULL))
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_transfers_date ON envelope_transfers(date);
-    CREATE INDEX IF NOT EXISTS idx_transfers_from ON envelope_transfers(fromEnvelopeId, date);
-    CREATE INDEX IF NOT EXISTS idx_transfers_to   ON envelope_transfers(toEnvelopeId, date);
-
-    ------------------------------
-    -- Miesięczne agregaty (aktualizowane triggerami)
+    -- Miesięczne agregaty
     ------------------------------
     CREATE TABLE IF NOT EXISTS monthly_aggregates (
       year                    INTEGER NOT NULL,
@@ -159,7 +154,6 @@ export const initDatabase = async () => {
       covered_from_buffer     REAL NOT NULL DEFAULT 0,
       PRIMARY KEY (year, month)
     );
-
 
     ------------------------------
     -- Presety
@@ -185,10 +179,8 @@ export const initDatabase = async () => {
     );
   `);
 
-  
-
   // --- TRIGGERS: ENTRIES ---
-  // Zmiany w entries wpływają na income_total/expense_total przez JOIN do categories.positive
+  // INSERT/DELETE oraz UPDATE(amount) — ignorujemy wpisy finansowane z koperty (financedEnvelopeId IS NOT NULL)
   await db.execAsync(`
 -- AFTER INSERT
 CREATE TRIGGER IF NOT EXISTS trg_entries_ai
@@ -198,38 +190,74 @@ BEGIN
   VALUES (
     CAST(strftime('%Y', NEW.date) AS INTEGER),
     CAST(strftime('%m', NEW.date) AS INTEGER),
-    CASE WHEN (SELECT c.positive
-               FROM subcategories s JOIN categories c ON c.id = s.categoryId
-               WHERE s.id = NEW.subcategoryId) = 1 THEN NEW.amount ELSE 0 END,
-    CASE WHEN (SELECT c.positive
-               FROM subcategories s JOIN categories c ON c.id = s.categoryId
-               WHERE s.id = NEW.subcategoryId) = 0 THEN NEW.amount ELSE 0 END
+    CASE
+      WHEN NEW.financedEnvelopeId IS NOT NULL THEN 0
+      ELSE CASE WHEN (SELECT c.positive
+                      FROM subcategories s JOIN categories c ON c.id = s.categoryId
+                      WHERE s.id = NEW.subcategoryId) = 1
+           THEN NEW.amount ELSE 0 END
+    END,
+    CASE
+      WHEN NEW.financedEnvelopeId IS NOT NULL THEN 0
+      ELSE CASE WHEN (SELECT c.positive
+                      FROM subcategories s JOIN categories c ON c.id = s.categoryId
+                      WHERE s.id = NEW.subcategoryId) = 0
+           THEN NEW.amount ELSE 0 END
+    END
   )
   ON CONFLICT(year, month) DO UPDATE SET
-    income_total  = income_total  + CASE WHEN (SELECT c.positive FROM subcategories s JOIN categories c ON c.id = s.categoryId WHERE s.id = NEW.subcategoryId) = 1 THEN NEW.amount ELSE 0 END,
-    expense_total = expense_total + CASE WHEN (SELECT c.positive FROM subcategories s JOIN categories c ON c.id = s.categoryId WHERE s.id = NEW.subcategoryId) = 0 THEN NEW.amount ELSE 0 END;
+    income_total  = income_total  + CASE
+                                      WHEN NEW.financedEnvelopeId IS NOT NULL THEN 0
+                                      ELSE CASE WHEN (SELECT c.positive FROM subcategories s JOIN categories c ON c.id = s.categoryId WHERE s.id = NEW.subcategoryId) = 1 THEN NEW.amount ELSE 0 END
+                                    END,
+    expense_total = expense_total + CASE
+                                      WHEN NEW.financedEnvelopeId IS NOT NULL THEN 0
+                                      ELSE CASE WHEN (SELECT c.positive FROM subcategories s JOIN categories c ON c.id = s.categoryId WHERE s.id = NEW.subcategoryId) = 0 THEN NEW.amount ELSE 0 END
+                                    END;
 END;
 
-
 -- AFTER DELETE
-CREATE TRIGGER IF NOT EXISTS trg_entries_ad
+CREATE TRIGGER trg_entries_ad
 AFTER DELETE ON entries
 BEGIN
+  -- aktualizacja monthly_aggregates
   INSERT INTO monthly_aggregates(year, month, income_total, expense_total)
   VALUES (
     CAST(strftime('%Y', OLD.date) AS INTEGER),
     CAST(strftime('%m', OLD.date) AS INTEGER),
-    CASE WHEN (SELECT c.positive
-               FROM subcategories s JOIN categories c ON c.id = s.categoryId
-               WHERE s.id = OLD.subcategoryId) = 1 THEN -OLD.amount ELSE 0 END,
-    CASE WHEN (SELECT c.positive
-               FROM subcategories s JOIN categories c ON c.id = s.categoryId
-               WHERE s.id = OLD.subcategoryId) = 0 THEN -OLD.amount ELSE 0 END
+    CASE
+      WHEN OLD.financedEnvelopeId IS NOT NULL THEN 0
+      ELSE CASE WHEN (SELECT c.positive
+                      FROM subcategories s JOIN categories c ON c.id = s.categoryId
+                      WHERE s.id = OLD.subcategoryId) = 1
+           THEN -OLD.amount ELSE 0 END
+    END,
+    CASE
+      WHEN OLD.financedEnvelopeId IS NOT NULL THEN 0
+      ELSE CASE WHEN (SELECT c.positive
+                      FROM subcategories s JOIN categories c ON c.id = s.categoryId
+                      WHERE s.id = OLD.subcategoryId) = 0
+           THEN -OLD.amount ELSE 0 END
+    END
   )
   ON CONFLICT(year, month) DO UPDATE SET
-    income_total  = income_total  + CASE WHEN (SELECT c.positive FROM subcategories s JOIN categories c ON c.id = s.categoryId WHERE s.id = OLD.subcategoryId) = 1 THEN -OLD.amount ELSE 0 END,
-    expense_total = expense_total + CASE WHEN (SELECT c.positive FROM subcategories s JOIN categories c ON c.id = s.categoryId WHERE s.id = OLD.subcategoryId) = 0 THEN -OLD.amount ELSE 0 END;
+    income_total  = income_total  + CASE
+                                      WHEN OLD.financedEnvelopeId IS NOT NULL THEN 0
+                                      ELSE CASE WHEN (SELECT c.positive FROM subcategories s JOIN categories c ON c.id = s.categoryId WHERE s.id = OLD.subcategoryId) = 1 THEN -OLD.amount ELSE 0 END
+                                    END,
+    expense_total = expense_total + CASE
+                                      WHEN OLD.financedEnvelopeId IS NOT NULL THEN 0
+                                      ELSE CASE WHEN (SELECT c.positive FROM subcategories s JOIN categories c ON c.id = s.categoryId WHERE s.id = OLD.subcategoryId) = 0 THEN -OLD.amount ELSE 0 END
+                                    END;
+
+  -- korekta salda koperty, jeśli kasowany wpis był WPŁATĄ do koperty
+  UPDATE envelopes
+  SET saldo = COALESCE(saldo, 0) - OLD.amount
+  WHERE OLD.depositEnvelopeId IS NOT NULL
+    AND OLD.subcategoryId = ${ENVELOPE_FUND_SUBCAT_ID}
+    AND id = OLD.depositEnvelopeId;
 END;
+
 
 
 -- AFTER UPDATE — tylko gdy zmienia się amount
@@ -237,161 +265,69 @@ CREATE TRIGGER IF NOT EXISTS trg_entries_au
 AFTER UPDATE OF amount ON entries
 WHEN OLD.amount != NEW.amount
 BEGIN
-  -- Odejmij stary wpływ
+  -- odejmij stary wpływ (jeśli nie był finansowany kopertą)
   INSERT INTO monthly_aggregates(year, month, income_total, expense_total)
   VALUES (
     CAST(strftime('%Y', OLD.date) AS INTEGER),
     CAST(strftime('%m', OLD.date) AS INTEGER),
-    CASE WHEN (SELECT c.positive FROM subcategories s JOIN categories c ON c.id = s.categoryId WHERE s.id = OLD.subcategoryId) = 1 THEN -OLD.amount ELSE 0 END,
-    CASE WHEN (SELECT c.positive FROM subcategories s JOIN categories c ON c.id = s.categoryId WHERE s.id = OLD.subcategoryId) = 0 THEN -OLD.amount ELSE 0 END
+    CASE
+      WHEN OLD.financedEnvelopeId IS NOT NULL THEN 0
+      ELSE CASE WHEN (SELECT c.positive FROM subcategories s JOIN categories c ON c.id = s.categoryId WHERE s.id = OLD.subcategoryId) = 1 THEN -OLD.amount ELSE 0 END
+    END,
+    CASE
+      WHEN OLD.financedEnvelopeId IS NOT NULL THEN 0
+      ELSE CASE WHEN (SELECT c.positive FROM subcategories s JOIN categories c ON c.id = s.categoryId WHERE s.id = OLD.subcategoryId) = 0 THEN -OLD.amount ELSE 0 END
+    END
   )
   ON CONFLICT(year, month) DO UPDATE SET
-    income_total  = income_total  + CASE WHEN (SELECT c.positive FROM subcategories s JOIN categories c ON c.id = s.categoryId WHERE s.id = OLD.subcategoryId) = 1 THEN -OLD.amount ELSE 0 END,
-    expense_total = expense_total + CASE WHEN (SELECT c.positive FROM subcategories s JOIN categories c ON c.id = s.categoryId WHERE s.id = OLD.subcategoryId) = 0 THEN -OLD.amount ELSE 0 END;
+    income_total  = income_total  + CASE
+                                      WHEN OLD.financedEnvelopeId IS NOT NULL THEN 0
+                                      ELSE CASE WHEN (SELECT c.positive FROM subcategories s JOIN categories c ON c.id = s.categoryId WHERE s.id = OLD.subcategoryId) = 1 THEN -OLD.amount ELSE 0 END
+                                    END,
+    expense_total = expense_total + CASE
+                                      WHEN OLD.financedEnvelopeId IS NOT NULL THEN 0
+                                      ELSE CASE WHEN (SELECT c.positive FROM subcategories s JOIN categories c ON c.id = s.categoryId WHERE s.id = OLD.subcategoryId) = 0 THEN -OLD.amount ELSE 0 END
+                                    END;
 
-  -- Dodaj nowy wpływ
+  -- dodaj nowy wpływ (jeśli nie jest finansowany kopertą)
   INSERT INTO monthly_aggregates(year, month, income_total, expense_total)
   VALUES (
     CAST(strftime('%Y', NEW.date) AS INTEGER),
     CAST(strftime('%m', NEW.date) AS INTEGER),
-    CASE WHEN (SELECT c.positive FROM subcategories s JOIN categories c ON c.id = s.categoryId WHERE s.id = NEW.subcategoryId) = 1 THEN NEW.amount ELSE 0 END,
-    CASE WHEN (SELECT c.positive FROM subcategories s JOIN categories c ON c.id = s.categoryId WHERE s.id = NEW.subcategoryId) = 0 THEN NEW.amount ELSE 0 END
+    CASE
+      WHEN NEW.financedEnvelopeId IS NOT NULL THEN 0
+      ELSE CASE WHEN (SELECT c.positive FROM subcategories s JOIN categories c ON c.id = s.categoryId WHERE s.id = NEW.subcategoryId) = 1 THEN NEW.amount ELSE 0 END
+    END,
+    CASE
+      WHEN NEW.financedEnvelopeId IS NOT NULL THEN 0
+      ELSE CASE WHEN (SELECT c.positive FROM subcategories s JOIN categories c ON c.id = s.categoryId WHERE s.id = NEW.subcategoryId) = 0 THEN NEW.amount ELSE 0 END
+    END
   )
   ON CONFLICT(year, month) DO UPDATE SET
-    income_total  = income_total  + CASE WHEN (SELECT c.positive FROM subcategories s JOIN categories c ON c.id = s.categoryId WHERE s.id = NEW.subcategoryId) = 1 THEN NEW.amount ELSE 0 END,
-    expense_total = expense_total + CASE WHEN (SELECT c.positive FROM subcategories s JOIN categories c ON c.id = s.categoryId WHERE s.id = NEW.subcategoryId) = 0 THEN NEW.amount ELSE 0 END;
+    income_total  = income_total  + CASE
+                                      WHEN NEW.financedEnvelopeId IS NOT NULL THEN 0
+                                      ELSE CASE WHEN (SELECT c.positive FROM subcategories s JOIN categories c ON c.id = s.categoryId WHERE s.id = NEW.subcategoryId) = 1 THEN NEW.amount ELSE 0 END
+                                    END,
+    expense_total = expense_total + CASE
+                                      WHEN NEW.financedEnvelopeId IS NOT NULL THEN 0
+                                      ELSE CASE WHEN (SELECT c.positive FROM subcategories s JOIN categories c ON c.id = s.categoryId WHERE s.id = NEW.subcategoryId) = 0 THEN NEW.amount ELSE 0 END
+                                    END;
 END;
   `);
 
-  // --- TRIGGERS: ENVELOPE TRANSFERS ---
-  // NULL->env => fund_in_total+, env->NULL => fund_out_total+, a jeśli from isBuffer=1 => covered_from_buffer+
-  await db.execAsync(`
-    CREATE TRIGGER IF NOT EXISTS trg_transfers_ai
-    AFTER INSERT ON envelope_transfers
-    BEGIN
-      -- Alokacja do koperty
-      INSERT INTO monthly_aggregates(year, month, fund_in_total)
-      SELECT CAST(strftime('%Y', NEW.date) AS INTEGER), CAST(strftime('%m', NEW.date) AS INTEGER), NEW.amount
-      WHERE NEW.fromEnvelopeId IS NULL AND NEW.toEnvelopeId IS NOT NULL
-      ON CONFLICT(year, month) DO UPDATE SET fund_in_total = fund_in_total + NEW.amount;
-
-      -- Wypłata z koperty
-      INSERT INTO monthly_aggregates(year, month, fund_out_total, covered_from_buffer)
-      SELECT
-        CAST(strftime('%Y', NEW.date) AS INTEGER),
-        CAST(strftime('%m', NEW.date) AS INTEGER),
-        NEW.amount,
-        CASE WHEN (SELECT isBuffer FROM envelopes WHERE id=NEW.fromEnvelopeId)=1 THEN NEW.amount ELSE 0 END
-      WHERE NEW.fromEnvelopeId IS NOT NULL AND NEW.toEnvelopeId IS NULL
-      ON CONFLICT(year, month) DO UPDATE SET
-        fund_out_total = fund_out_total + NEW.amount,
-        covered_from_buffer = covered_from_buffer + CASE WHEN (SELECT isBuffer FROM envelopes WHERE id=NEW.fromEnvelopeId)=1 THEN NEW.amount ELSE 0 END;
-    END;
-
-    CREATE TRIGGER IF NOT EXISTS trg_transfers_ad
-    AFTER DELETE ON envelope_transfers
-    BEGIN
-      -- Rewers alokacji
-      INSERT INTO monthly_aggregates(year, month, fund_in_total)
-      SELECT CAST(strftime('%Y', OLD.date) AS INTEGER), CAST(strftime('%m', OLD.date) AS INTEGER), -OLD.amount
-      WHERE OLD.fromEnvelopeId IS NULL AND OLD.toEnvelopeId IS NOT NULL
-      ON CONFLICT(year, month) DO UPDATE SET fund_in_total = fund_in_total - OLD.amount;
-
-      -- Rewers wypłaty
-      INSERT INTO monthly_aggregates(year, month, fund_out_total, covered_from_buffer)
-      SELECT
-        CAST(strftime('%Y', OLD.date) AS INTEGER),
-        CAST(strftime('%m', OLD.date) AS INTEGER),
-        -OLD.amount,
-        CASE WHEN (SELECT isBuffer FROM envelopes WHERE id=OLD.fromEnvelopeId)=1 THEN -OLD.amount ELSE 0 END
-      WHERE OLD.fromEnvelopeId IS NOT NULL AND OLD.toEnvelopeId IS NULL
-      ON CONFLICT(year, month) DO UPDATE SET
-        fund_out_total = fund_out_total - OLD.amount,
-        covered_from_buffer = covered_from_buffer + CASE WHEN (SELECT isBuffer FROM envelopes WHERE id=OLD.fromEnvelopeId)=1 THEN -OLD.amount ELSE 0 END;
-    END;
-
-    CREATE TRIGGER IF NOT EXISTS trg_transfers_au
-    AFTER UPDATE OF date, fromEnvelopeId, toEnvelopeId, amount ON envelope_transfers
-    BEGIN
-      -- odejmij stary wpływ
-      INSERT INTO monthly_aggregates(year, month, fund_in_total)
-      SELECT CAST(strftime('%Y', OLD.date) AS INTEGER), CAST(strftime('%m', OLD.date) AS INTEGER), -OLD.amount
-      WHERE OLD.fromEnvelopeId IS NULL AND OLD.toEnvelopeId IS NOT NULL
-      ON CONFLICT(year, month) DO UPDATE SET fund_in_total = fund_in_total - OLD.amount;
-
-      INSERT INTO monthly_aggregates(year, month, fund_out_total, covered_from_buffer)
-      SELECT
-        CAST(strftime('%Y', OLD.date) AS INTEGER),
-        CAST(strftime('%m', OLD.date) AS INTEGER),
-        -OLD.amount,
-        CASE WHEN (SELECT isBuffer FROM envelopes WHERE id=OLD.fromEnvelopeId)=1 THEN -OLD.amount ELSE 0 END
-      WHERE OLD.fromEnvelopeId IS NOT NULL AND OLD.toEnvelopeId IS NULL
-      ON CONFLICT(year, month) DO UPDATE SET
-        fund_out_total = fund_out_total - OLD.amount,
-        covered_from_buffer = covered_from_buffer + CASE WHEN (SELECT isBuffer FROM envelopes WHERE id=OLD.fromEnvelopeId)=1 THEN -OLD.amount ELSE 0 END;
-
-      -- dodaj nowy wpływ
-      INSERT INTO monthly_aggregates(year, month, fund_in_total)
-      SELECT CAST(strftime('%Y', NEW.date) AS INTEGER), CAST(strftime('%m', NEW.date) AS INTEGER), NEW.amount
-      WHERE NEW.fromEnvelopeId IS NULL AND NEW.toEnvelopeId IS NOT NULL
-      ON CONFLICT(year, month) DO UPDATE SET fund_in_total = fund_in_total + NEW.amount;
-
-      INSERT INTO monthly_aggregates(year, month, fund_out_total, covered_from_buffer)
-      SELECT
-        CAST(strftime('%Y', NEW.date) AS INTEGER),
-        CAST(strftime('%m', NEW.date) AS INTEGER),
-        NEW.amount,
-        CASE WHEN (SELECT isBuffer FROM envelopes WHERE id=NEW.fromEnvelopeId)=1 THEN NEW.amount ELSE 0 END
-      WHERE NEW.fromEnvelopeId IS NOT NULL AND NEW.toEnvelopeId IS NULL
-      ON CONFLICT(year, month) DO UPDATE SET
-        fund_out_total = fund_out_total + NEW.amount,
-        covered_from_buffer = covered_from_buffer + CASE WHEN (SELECT isBuffer FROM envelopes WHERE id=NEW.fromEnvelopeId)=1 THEN NEW.amount ELSE 0 END;
-    END;
-  `);
   await insertInitialData();
   await checAndInsertPresetData();
 };
 
-const checAndInsertPresetData = async () => {
-  if (!db) return;
 
-  const result = await db.getFirstAsync(`SELECT value FROM config WHERE key = ?`, ['preset_inserted']);
-
-  if (result?.value === 'true') {
-    console.log('Preset data already copied to prod, skipping...');
-    return;
-  }
-
-  const presetCategories = await db.getAllAsync(`SELECT * FROM preset_categories`);
-  const categoryIdMap = {};
-  for (const cat of presetCategories) {
-    const result = await db.runAsync(
-      `INSERT INTO categories (name, iconId, color, positive, isDefault) VALUES (?, ?, ?, ?, ?)`,
-      [cat.name, cat.iconId, cat.color, 0, 0]
-    );
-    categoryIdMap[cat.name] = result.lastInsertRowId;
-  }
-
-  const presetSubcategories = await db.getAllAsync(`SELECT * FROM preset_subcategories`);
-
-  for (const sub of presetSubcategories) {
-    const { name, iconId, color, categoryId } = sub;
-
-    await db.runAsync(`INSERT INTO subcategories (name, iconId, color, categoryId, isDefault) VALUES (?, ?, ?, ?, ?)`, [
-      name,
-      iconId,
-      color,
-      categoryId,
-      0,
-    ]);
-  }
-
-  await db.runAsync(`UPDATE config SET value = ? WHERE key = ?`, ['true', 'preset_inserted']);
-
-  console.log('Preset data copied and config updated.');
+export const getDb = () => {
+  if (!db) throw new Error('Database not initialized');
+  return db;
 };
 
-const insertInitialData = async () => {
+
+export const insertInitialData = async () => {
+  db = await getDb();
   if (!db) return;
 
   const result = await db.getFirstAsync(`SELECT value FROM config WHERE key = ?`, ['base_iniciated']);
@@ -457,6 +393,8 @@ const insertInitialData = async () => {
     'notebook-outline',
     'basket-outline',
     'alert-circle-outline',
+    'email-plus-outline',
+    'email-outline',
   ];
 
   for (const name of icons) {
@@ -471,26 +409,29 @@ const insertInitialData = async () => {
   );
 
   await db.runAsync(
-    `INSERT INTO subcategories (id, name, iconId, color, categoryId, isDefault) VALUES (1, 'Pozostałe dochody', 14, '#9E9E9E', 1, 1)`
+    `INSERT INTO subcategories (id, name, iconId, color, categoryId, isDefault) VALUES (${OTHER_INCOME_SUBCAT_ID}, 'Pozostałe dochody', 14, '#9E9E9E', 1, 1)`
   );
   await db.runAsync(
-    `INSERT INTO subcategories (id, name, iconId, color, categoryId, isDefault) VALUES (2, 'Inne zakupy', 54, '#9E9E9E', 2, 1)`
+    `INSERT INTO subcategories (id, name, iconId, color, categoryId, isDefault) VALUES (${ENVELOPE_FUND_SUBCAT_ID}, 'Zasilenia kopert', 56, '#9E9E9E', 2, 1)`
   );
   await db.runAsync(
-    `INSERT INTO subcategories (id, name, iconId, color, categoryId, isDefault) VALUES (3, 'Niespodziewane wydatki', 55, '#9E9E9E', 2, 1)`
+    `INSERT INTO subcategories (id, name, iconId, color, categoryId, isDefault) VALUES (3, 'Inne zakupy', 54, '#9E9E9E', 2, 1)`
+  );
+  await db.runAsync(
+    `INSERT INTO subcategories (id, name, iconId, color, categoryId, isDefault) VALUES (4, 'Niespodziewane wydatki', 55, '#9E9E9E', 2, 1)`
   );
 
   const preset_categories = [
-    { name: 'Rachunki i opłaty stałe', iconId: 2, color: '#FF9800' }, // START OD ID 3
-    { name: 'Żywność i przekąski', iconId: 3, color: '#FFC107' }, // 4
-    { name: 'Jedzenie na wynos / dostawa', iconId: 4, color: '#FF5722' }, // 5
-    { name: 'Rozrywka', iconId: 5, color: '#9C27B0' }, //6
-    { name: 'Alkohol', iconId: 6, color: '#795548' }, //7
-    { name: 'Dom i mieszkanie', iconId: 7, color: '#3F51B5' }, //8
-    { name: 'Transport', iconId: 8, color: '#2196F3' }, //9
-    { name: 'Zdrowie i higiena', iconId: 9, color: '#E91E63' }, //10
-    { name: 'Ubrania i obuwie', iconId: 10, color: '#00BCD4' }, //11
-    { name: 'Edukacja / rozwój', iconId: 11, color: '#009688' }, //12
+    { name: 'Rachunki i opłaty stałe', iconId: 2, color: '#FF9800' }, // START OD ID 4
+    { name: 'Żywność i przekąski', iconId: 3, color: '#FFC107' }, // 5
+    { name: 'Jedzenie na wynos / dostawa', iconId: 4, color: '#FF5722' }, // 6
+    { name: 'Rozrywka', iconId: 5, color: '#9C27B0' }, // 7
+    { name: 'Alkohol', iconId: 6, color: '#795548' }, // 8
+    { name: 'Dom i mieszkanie', iconId: 7, color: '#3F51B5' }, // 9
+    { name: 'Transport', iconId: 8, color: '#2196F3' }, // 10
+    { name: 'Zdrowie i higiena', iconId: 9, color: '#E91E63' }, // 11
+    { name: 'Ubrania i obuwie', iconId: 10, color: '#00BCD4' }, // 12
+    { name: 'Edukacja / rozwój', iconId: 11, color: '#009688' }, // 13
   ];
 
   for (const cat of preset_categories) {
@@ -502,51 +443,51 @@ const insertInitialData = async () => {
   }
 
   const preset_subcategories = [
-    { id: 4, name: 'Wynagrodzenie', iconId: 13, categoryId: 1 },
-    { id: 5, name: 'Czynsz', iconId: 15, categoryId: 3 },
-    { id: 6, name: 'Prąd', iconId: 16, categoryId: 3 },
-    { id: 7, name: 'Gaz', iconId: 17, categoryId: 3 },
-    { id: 8, name: 'Woda', iconId: 18, categoryId: 3 },
-    { id: 9, name: 'Telefon', iconId: 19, categoryId: 3 },
-    { id: 10, name: 'Internet', iconId: 20, categoryId: 3 },
-    { id: 11, name: 'Kredyt', iconId: 21, categoryId: 3 },
-    { id: 12, name: 'Żywność', iconId: 22, categoryId: 4 },
-    { id: 13, name: 'Przekąski', iconId: 23, categoryId: 4 },
-    { id: 14, name: 'Glovo', iconId: 24, categoryId: 5 },
-    { id: 15, name: 'Pyszne', iconId: 25, categoryId: 5 },
-    { id: 16, name: 'Restauracja', iconId: 26, categoryId: 5 },
-    { id: 17, name: 'Kino', iconId: 27, categoryId: 6 },
-    { id: 18, name: 'Gry', iconId: 5, categoryId: 6 },
-    { id: 19, name: 'Gry planszowe', iconId: 28, categoryId: 6 },
-    { id: 20, name: 'Koncerty', iconId: 29, categoryId: 6 },
-    { id: 21, name: 'Subskrypcje', iconId: 30, categoryId: 6 },
-    { id: 22, name: 'Sklep', iconId: 3, categoryId: 7 },
-    { id: 23, name: 'Na mieście', iconId: 31, categoryId: 7 },
-    { id: 24, name: 'Środki czystości', iconId: 32, categoryId: 8 },
-    { id: 25, name: 'Meble', iconId: 33, categoryId: 8 },
-    { id: 26, name: 'Dekoracje', iconId: 34, categoryId: 8 },
-    { id: 27, name: 'Sprzęty domowe', iconId: 35, categoryId: 8 },
-    { id: 28, name: 'Paliwo moto', iconId: 24, categoryId: 9 },
-    { id: 29, name: 'Paliwo auto', iconId: 36, categoryId: 9 },
-    { id: 30, name: 'Naprawa moto', iconId: 37, categoryId: 9 },
-    { id: 31, name: 'Naprawa auto', iconId: 38, categoryId: 9 },
-    { id: 32, name: 'Ubezpieczenie moto', iconId: 39, categoryId: 9 },
-    { id: 33, name: 'Ubezpieczenie auto', iconId: 40, categoryId: 9 },
-    { id: 34, name: 'Taxi', iconId: 41, categoryId: 9 },
-    { id: 35, name: 'Bilety', iconId: 42, categoryId: 9 },
-    { id: 36, name: 'Leki', iconId: 43, categoryId: 10 },
-    { id: 37, name: 'Lekarz', iconId: 44, categoryId: 10 },
-    { id: 38, name: 'Kosmetyki', iconId: 45, categoryId: 10 },
-    { id: 39, name: 'Fryzjer', iconId: 46, categoryId: 10 },
-    { id: 40, name: 'Siłownia', iconId: 47, categoryId: 10 },
-    { id: 41, name: 'Ubrania', iconId: 10, categoryId: 11 },
-    { id: 42, name: 'Obuwie', iconId: 48, categoryId: 11 },
-    { id: 43, name: 'Akcesoria', iconId: 49, categoryId: 11 },
-    { id: 44, name: 'Książki', iconId: 50, categoryId: 12 },
-    { id: 45, name: 'Kurs online', iconId: 51, categoryId: 12 },
-    { id: 46, name: 'Szkolenie', iconId: 52, categoryId: 12 },
-    { id: 47, name: 'Materiały edukacyjne', iconId: 53, categoryId: 12 },
-    { id: 48, name: 'Subskrypcje', iconId: 30, categoryId: 12 },
+    { id: 5, name: 'Wynagrodzenie', iconId: 13, categoryId: 1 },
+    { id: 6, name: 'Czynsz', iconId: 15, categoryId: 3 },
+    { id: 7, name: 'Prąd', iconId: 16, categoryId: 3 },
+    { id: 8, name: 'Gaz', iconId: 17, categoryId: 3 },
+    { id: 9, name: 'Woda', iconId: 18, categoryId: 3 },
+    { id: 10, name: 'Telefon', iconId: 19, categoryId: 3 },
+    { id: 11, name: 'Internet', iconId: 20, categoryId: 3 },
+    { id: 12, name: 'Kredyt', iconId: 21, categoryId: 3 },
+    { id: 13, name: 'Żywność', iconId: 22, categoryId: 4 },
+    { id: 14, name: 'Przekąski', iconId: 23, categoryId: 4 },
+    { id: 15, name: 'Glovo', iconId: 24, categoryId: 5 },
+    { id: 16, name: 'Pyszne', iconId: 25, categoryId: 5 },
+    { id: 17, name: 'Restauracja', iconId: 26, categoryId: 5 },
+    { id: 18, name: 'Kino', iconId: 27, categoryId: 6 },
+    { id: 19, name: 'Gry', iconId: 5, categoryId: 6 },
+    { id: 20, name: 'Gry planszowe', iconId: 28, categoryId: 6 },
+    { id: 21, name: 'Koncerty', iconId: 29, categoryId: 6 },
+    { id: 22, name: 'Subskrypcje', iconId: 30, categoryId: 6 },
+    { id: 23, name: 'Sklep', iconId: 3, categoryId: 7 },
+    { id: 24, name: 'Na mieście', iconId: 31, categoryId: 7 },
+    { id: 25, name: 'Środki czystości', iconId: 32, categoryId: 8 },
+    { id: 26, name: 'Meble', iconId: 33, categoryId: 8 },
+    { id: 27, name: 'Dekoracje', iconId: 34, categoryId: 8 },
+    { id: 28, name: 'Sprzęty domowe', iconId: 35, categoryId: 8 },
+    { id: 29, name: 'Paliwo moto', iconId: 24, categoryId: 9 },
+    { id: 30, name: 'Paliwo auto', iconId: 36, categoryId: 9 },
+    { id: 31, name: 'Naprawa moto', iconId: 37, categoryId: 9 },
+    { id: 32, name: 'Naprawa auto', iconId: 38, categoryId: 9 },
+    { id: 33, name: 'Ubezpieczenie moto', iconId: 39, categoryId: 9 },
+    { id: 34, name: 'Ubezpieczenie auto', iconId: 40, categoryId: 9 },
+    { id: 35, name: 'Taxi', iconId: 41, categoryId: 9 },
+    { id: 36, name: 'Bilety', iconId: 42, categoryId: 9 },
+    { id: 37, name: 'Leki', iconId: 43, categoryId: 10 },
+    { id: 38, name: 'Lekarz', iconId: 44, categoryId: 10 },
+    { id: 39, name: 'Kosmetyki', iconId: 45, categoryId: 10 },
+    { id: 40, name: 'Fryzjer', iconId: 46, categoryId: 10 },
+    { id: 41, name: 'Siłownia', iconId: 47, categoryId: 10 },
+    { id: 42, name: 'Ubrania', iconId: 10, categoryId: 11 },
+    { id: 43, name: 'Obuwie', iconId: 48, categoryId: 11 },
+    { id: 44, name: 'Akcesoria', iconId: 49, categoryId: 11 },
+    { id: 45, name: 'Książki', iconId: 50, categoryId: 12 },
+    { id: 46, name: 'Kurs online', iconId: 51, categoryId: 12 },
+    { id: 47, name: 'Szkolenie', iconId: 52, categoryId: 12 },
+    { id: 48, name: 'Materiały edukacyjne', iconId: 53, categoryId: 12 },
+    { id: 49, name: 'Subskrypcje', iconId: 30, categoryId: 12 },
   ];
 
   for (const sub of preset_subcategories) {
@@ -564,7 +505,41 @@ const insertInitialData = async () => {
   console.log('Database successfuly populated.');
 };
 
-export const getDb = () => {
-  if (!db) throw new Error('Database not initialized');
-  return db;
+export const checAndInsertPresetData = async () => {
+  db = await getDb();
+  if (!db) return;
+
+  const result = await db.getFirstAsync(`SELECT value FROM config WHERE key = ?`, ['preset_inserted']);
+
+  if (result?.value === 'true') {
+    console.log('Preset data already copied to prod, skipping...');
+    return;
+  }
+
+  const presetCategories = await db.getAllAsync(`SELECT * FROM preset_categories`);
+  const categoryIdMap = {};
+  for (const cat of presetCategories) {
+    const res = await db.runAsync(
+      `INSERT INTO categories (name, iconId, color, positive, isDefault) VALUES (?, ?, ?, ?, ?)`,
+      [cat.name, cat.iconId, cat.color, 0, 0]
+    );
+    categoryIdMap[cat.name] = res.lastInsertRowId;
+  }
+
+  const presetSubcategories = await db.getAllAsync(`SELECT * FROM preset_subcategories`);
+
+  for (const sub of presetSubcategories) {
+    const { name, iconId, color, categoryId } = sub;
+    await db.runAsync(`INSERT INTO subcategories (name, iconId, color, categoryId, isDefault) VALUES (?, ?, ?, ?, ?)`, [
+      name,
+      iconId,
+      color,
+      categoryId,
+      0,
+    ]);
+  }
+
+  await db.runAsync(`UPDATE config SET value = ? WHERE key = ?`, ['true', 'preset_inserted']);
+
+  console.log('Preset data copied and config updated.');
 };
