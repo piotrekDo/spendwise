@@ -1,5 +1,5 @@
 import * as SQLite from 'expo-sqlite';
-import { ENVELOPE_FUND_SUBCAT_ID, OTHER_INCOME_SUBCAT_ID } from '../config/constants';
+import { ENVELOPE_FUND_SUBCAT_ID, OTHER_INCOME_SUBCAT_ID, OTHER_EXPENSES_SUBCAT_ID } from '../config/constants';
 
 let db = null;
 
@@ -415,7 +415,7 @@ export const insertInitialData = async () => {
     `INSERT INTO subcategories (id, name, iconId, color, categoryId, isDefault) VALUES (${ENVELOPE_FUND_SUBCAT_ID}, 'Zasilenia kopert', 56, '#9E9E9E', 2, 1)`
   );
   await db.runAsync(
-    `INSERT INTO subcategories (id, name, iconId, color, categoryId, isDefault) VALUES (3, 'Inne zakupy', 54, '#9E9E9E', 2, 1)`
+    `INSERT INTO subcategories (id, name, iconId, color, categoryId, isDefault) VALUES (${OTHER_EXPENSES_SUBCAT_ID}, 'Inne zakupy', 54, '#9E9E9E', 2, 1)`
   );
   await db.runAsync(
     `INSERT INTO subcategories (id, name, iconId, color, categoryId, isDefault) VALUES (4, 'Niespodziewane wydatki', 55, '#9E9E9E', 2, 1)`

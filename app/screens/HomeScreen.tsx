@@ -8,7 +8,7 @@ import { CategoryDetailsModal } from '../components/CategoryDetailsModal';
 import { NewEntryModal } from '../components/NewEntryModal';
 import { DisplayCategory } from '../model/Spendings';
 import { getCategorySkeletonForSelectedmonth } from '../services/categoriesService';
-import { getSelectedCategorySpendings, getSpendingsInRange, SpendingEntry } from '../services/spendingsService';
+import { getSelectedCategorySpendings, getSpendingsInRange, Entry } from '../services/entriesService';
 import { getBalancesForMonth, getVaultBreakdown } from '../services/balancesService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import routes from '../navigation/routes';
@@ -37,7 +37,7 @@ export const HomeScreen = () => {
   const [expanded, setExpanded] = useState<number[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [modalSubId, setModalSubId] = useState<number | null>(null);
-  const [categoryDetailsData, setCategoryDetailsData] = useState<SpendingEntry[]>([]);
+  const [categoryDetailsData, setCategoryDetailsData] = useState<Entry[]>([]);
   const [saldoMonth, setSaldoMonth] = useState(0);
   const [saldoVault, setSaldoVault] = useState(0);
   const [saldoTotal, setSaldoTotal] = useState(0);
@@ -72,7 +72,7 @@ export const HomeScreen = () => {
 
   const loadData = async () => {
     const { start, end } = getMonthDateRange(year, month0);
-    const spendings: SpendingEntry[] = await getSpendingsInRange(start, end);
+    const spendings: Entry[] = await getSpendingsInRange(start, end);
 
     const merged = skeleton.map(cat => {
       const updatedSub = cat.subcategories.map(sub => {

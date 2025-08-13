@@ -126,3 +126,35 @@ export const addEnvelope = async (
   return res.lastInsertRowId as number;
 };
 
+// services/envelopesService.ts (dopisz)
+
+export const getEnvelopeDeposits = async (envelopeId: number): Promise<Array<{ id:number; date:string; amount:number; note:string }>> => {
+  const db = getDb();
+
+
+  // pokazujemy tylko WPŁATY do koperty: depositEnvelopeId != NULL i subcategoryId == ENVELOPE_FUND_SUBCAT_ID
+  const rows = await db.getAllAsync(
+    `SELECT id, date, amount, description AS note
+     FROM entries
+     WHERE depositEnvelopeId = ?
+       AND subcategoryId = ${ENVELOPE_FUND_SUBCAT_ID}
+     ORDER BY date ASC, id ASC`,
+    [envelopeId]
+  ) as any[];
+
+  return rows.map(r => ({
+    id: r.id, date: r.date, amount: Number(r.amount), note: r.note ?? ''
+  }));
+};
+
+
+export const updateEnvelope = async (
+  envelopeId: number,
+  data: { name: string; color: string; target: number | null }
+): Promise<void> => {
+  const db = getDb();
+  await db.runAsync(
+    `UPDATE envelopes SET name = ?, color = ?, target = ? WHERE id = ?`,
+    [data.name, data.color, data.target, envelopeId]
+  );
+};

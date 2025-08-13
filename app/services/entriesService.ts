@@ -1,6 +1,6 @@
 import { getDb } from '../database/db';
 
-export type SpendingEntry = {
+export type Entry = {
   id: number;
   amount: number;
   description: string;
@@ -13,7 +13,17 @@ export type SpendingEntry = {
   categoryIcon: string;
 };
 
-export const getSpendingsInRange = async (startDate: string, endDate: string): Promise<SpendingEntry[]> => {
+export const addEntry = async (subcategoryId: number, amount: number, description: string, date: string) => {
+  const db = getDb();
+  await db.runAsync(`INSERT INTO entries (amount, description, date, subcategoryId) VALUES (?, ?, ?, ?)`, [
+    amount,
+    description,
+    date,
+    subcategoryId,
+  ]);
+};
+
+export const getSpendingsInRange = async (startDate: string, endDate: string): Promise<Entry[]> => {
   const db = getDb();
 
   const query = `
@@ -30,7 +40,7 @@ export const getSpendingsInRange = async (startDate: string, endDate: string): P
   `;
 
   const results = await db.getAllAsync(query, [startDate, endDate]);
-  return results as SpendingEntry[];
+  return results as Entry[];
 };
 
 
@@ -50,7 +60,7 @@ export const getSelectedCategorySpendings = async (categoryId: number, startDate
   `;
 
   const results = await db.getAllAsync(query, [categoryId, startDate, endDate]);
-  return results as SpendingEntry[];
+  return results as Entry[];
 };
 
 export const deleteEntry = async (id: number): Promise<void> => {

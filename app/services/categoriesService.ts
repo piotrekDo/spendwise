@@ -1,3 +1,4 @@
+import { OTHER_EXPENSES_SUBCAT_ID, OTHER_INCOME_SUBCAT_ID } from '../config/constants';
 import { getDb } from '../database/db';
 
 /** Aktualizacja kategorii */
@@ -76,7 +77,7 @@ const deleteSubcategoryByIdInternal = async (subCategoryId: number) => {
   const sub = row as { subName: string; catName: string; positive: number } | undefined;
   if (!sub) throw new Error(`Subcategory ${subCategoryId} not found`);
 
-  const targetId = sub.positive ? 1 : 2;
+  const targetId = sub.positive ? OTHER_INCOME_SUBCAT_ID : OTHER_EXPENSES_SUBCAT_ID;
   const prefix = `[${sub.catName}/${sub.subName}: ] `;
 
   await db.runAsync(

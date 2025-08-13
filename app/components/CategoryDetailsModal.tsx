@@ -3,12 +3,12 @@ import { View, Text, Modal, StyleSheet, TouchableOpacity, FlatList, Dimensions }
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated from 'react-native-reanimated';
-import { SpendingEntry, deleteEntry } from '../services/spendingsService';
+import { Entry, deleteEntry } from '../services/entriesService';
 import colors from '../config/colors';
 import Swipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 
 interface Props {
-  data: SpendingEntry[];
+  data: Entry[];
   onClose: () => void;
   onRefresh: (entryId: number) => void;
 }
@@ -26,7 +26,7 @@ export const CategoryDetailsModal = ({ data, onClose, onRefresh }: Props) => {
     </TouchableOpacity>
   );
 
-  const renderItem = ({ item }: { item: SpendingEntry }) => (
+  const renderItem = ({ item }: { item: Entry }) => (
     <Swipeable
       renderRightActions={() => renderRightActions(item.id)}
       containerStyle={{ marginBottom: 10 }}

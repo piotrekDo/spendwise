@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -11,11 +11,11 @@ import {
   TextInput,
   Alert,
 } from 'react-native';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import colors from '../../config/colors';
 import { getActiveEnvelopes, Envelope, addEnvelope, depositToEnvelope } from '../../services/envelopesService';
-
+import routes from '../../navigation/routes';
 type RouteParams = { month1?: number; year: number };
 
 const COLOR_PRESETS = ['#4F7CAC', '#7C4DFF', '#2E7D32', '#1565C0', '#B28704', '#C62828', '#8E24AA', '#00897B'];
@@ -46,9 +46,11 @@ export const EnvelopesHome = () => {
     setLoading(false);
   };
 
-  useEffect(() => {
-    loadActiveEnvelopes();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      loadActiveEnvelopes();
+    }, [])
+  );
 
   const resetForm = () => {
     setNewName('');
@@ -90,8 +92,8 @@ export const EnvelopesHome = () => {
       if (depositNum > 0) {
         await depositToEnvelope(envelopeId, depositNum, {
           note: note?.trim() || 'Startowe zasilenie',
-          year: year, 
-          month1: month1
+          year: year,
+          month1: month1,
         });
       }
 
@@ -165,7 +167,7 @@ export const EnvelopesHome = () => {
               />
 
               <Text style={styles.formLabel}>Kolor</Text>
-              <View style={styles.colorsRow}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.colorsRow}>
                 {COLOR_PRESETS.map(c => (
                   <TouchableOpacity
                     key={c}
@@ -176,7 +178,7 @@ export const EnvelopesHome = () => {
                     ]}
                   />
                 ))}
-              </View>
+              </ScrollView>
 
               <View style={styles.formActions}>
                 <TouchableOpacity
@@ -206,23 +208,54 @@ export const EnvelopesHome = () => {
             <Text style={styles.info}>Brak aktywnych kopert</Text>
           ) : (
             <ScrollView style={styles.scroll} keyboardShouldPersistTaps='handled'>
-              {envelopes.map(env => (
-                <View key={env.id} style={styles.envelopeRow}>
-                  <MaterialCommunityIcons
-                    name='wallet-outline'
-                    size={22}
-                    color={env.color || colors.textPimary}
-                    style={{ marginRight: 8 }}
-                  />
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.envelopeName}>{env.name}</Text>
-                    <Text style={styles.envelopeSaldo}>
-                      Saldo: {Number(env.saldo ?? 0).toFixed(2)}
-                      {env.target != null ? ` / ${Number(env.target).toFixed(2)}` : ''} zł
-                    </Text>
-                  </View>
-                </View>
-              ))}
+              {envelopes.map(env => {
+                const hasTarget = typeof env.target === 'number' && isFinite(env.target) && env.target > 0;
+                const progress = hasTarget ? Math.min(1, Math.max(0, (env.saldo ?? 0) / env.target!)) : 0;
+
+                return (
+                  <TouchableOpacity
+                    key={env.id}
+                    style={styles.envelopeRow}
+                    activeOpacity={0.7}
+                    onPress={() =>
+                      navigation.navigate(routes.ENVELOPE_DETAILS as any, { envelopeId: env.id, year, month1 })
+                    }
+                    onLongPress={() =>
+                      navigation.navigate(routes.ENVELOPE_EDIT as any, {
+                        envelopeId: env.id,
+                        initialName: env.name,
+                        initialColor: env.color,
+                      })
+                    }
+                  >
+                    <MaterialCommunityIcons
+                      name='wallet-outline'
+                      size={22}
+                      color={env.color || colors.textPimary}
+                      style={{ marginRight: 8 }}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.envelopeName}>{env.name}</Text>
+                      <Text style={styles.envelopeSaldo}>
+                        Saldo: {Number(env.saldo ?? 0).toFixed(2)}
+                        {hasTarget ? ` / ${Number(env.target).toFixed(2)}` : ''} zł
+                      </Text>
+
+                      {/* Pasek napełnienia */}
+                      {hasTarget && (
+                        <View style={styles.progressTrack}>
+                          <View
+                            style={[
+                              styles.progressFill,
+                              { width: `${progress * 100}%`, backgroundColor: env.color || '#4CAF50' },
+                            ]}
+                          />
+                        </View>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
             </ScrollView>
           )}
 
@@ -251,7 +284,7 @@ const styles = StyleSheet.create({
   },
   modal: {
     backgroundColor: colors.background,
-    padding: 20,
+    padding: 50,
     borderRadius: 12,
     width: '92%',
     maxHeight: '90%',
@@ -307,4 +340,15 @@ const styles = StyleSheet.create({
 
   actions: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 8 },
   cancel: { fontSize: 24, color: 'red' },
+  progressTrack: {
+    backgroundColor: '#2E2F36',
+    borderRadius: 6,
+    height: 8,
+    marginTop: 4,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 6,
+  },
 });

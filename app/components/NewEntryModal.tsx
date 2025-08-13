@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { View, Text, Modal, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { addEntry } from '../services/entriesService';
 import colors from '../config/colors';
+import { addEntry } from '../services/entriesService';
 
 type Props = {
   monthOffset: number;

@@ -5,12 +5,16 @@ import { SubCategoryEditScreen } from '../screens/modals/SubCategoryEditScreen';
 import { CategoryEditScreen } from '../screens/modals/CategoryEditScreen';
 import routes from './routes';
 import { EnvelopesHome } from '../screens/modals/EnvelopesHome';
+import { EnvelopeDetails } from '../screens/modals/EnvelopeDetails';
+import { EnvelopeEdit } from '../screens/modals/EnvelopeEdit';
 
 export type RootStackParamList = {
   Main: undefined;
   SubCategoryEditScreen: { sub?: any; expandedCategory: number } | undefined;
   CategoryEditScreen: { cat?: any } | undefined;
   EnvelopesHome: {month1: number, year: number} | undefined;
+  EnvelopeDetails: { envelopeId: number; year: number; month1: number } | undefined;
+  EnvelopeEdit: { envelopeId:number; initialName?:string; initialColor?:string } | undefined
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -47,6 +51,24 @@ export const RootNavigator = () => {
       <Stack.Screen
         name={routes.MODAL_ENVELOPES_HOME}
         component={EnvelopesHome}
+        options={{
+          presentation: 'transparentModal',
+          contentStyle: { backgroundColor: 'transparent' },
+          animation: 'fade',
+        }}
+      />
+      <Stack.Screen
+        name={routes.ENVELOPE_DETAILS}
+        component={EnvelopeDetails}
+        options={{
+          presentation: 'transparentModal',
+          contentStyle: { backgroundColor: 'transparent' },
+          animation: 'fade',
+        }}
+      />
+      <Stack.Screen
+        name={routes.ENVELOPE_EDIT}
+        component={EnvelopeEdit}
         options={{
           presentation: 'transparentModal',
           contentStyle: { backgroundColor: 'transparent' },

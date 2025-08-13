@@ -8,4 +8,6 @@ export default Object.freeze({
   MODAL_CATEGORY_EDIT: 'CategoryEditScreen',
   MODAL_SUBCATEGORY_EDIT: 'SubCategoryEditScreen',
   MODAL_ENVELOPES_HOME: 'EnvelopesHome',
+  ENVELOPE_DETAILS: 'EnvelopeDetails',
+  ENVELOPE_EDIT: 'EnvelopeEdit',
 });
