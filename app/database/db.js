@@ -104,11 +104,7 @@ export const initDatabase = async () => {
       subcategoryId      INTEGER NOT NULL,
       description        TEXT,
       isArchived         INTEGER NOT NULL DEFAULT 0 CHECK (isArchived IN (0,1)),
-
-      -- jeśli to wpłata DO koperty: wskazuje kopertę, subcategoryId MUSI być ENVELOPE_FUND_SUBCAT_ID
       depositEnvelopeId  INTEGER REFERENCES envelopes(id) ON DELETE RESTRICT,
-
-      -- jeśli to zakup FINANSOWANY z koperty: wskazuje kopertę; taki wpis NIE wpływa na monthly_aggregates
       financedEnvelopeId INTEGER REFERENCES envelopes(id) ON DELETE RESTRICT,
 
       -- nie można mieć jednocześnie wpłaty i finansowania
@@ -130,15 +126,16 @@ export const initDatabase = async () => {
     -- Koperty
     ------------------------------
     CREATE TABLE IF NOT EXISTS envelopes (
-      id        INTEGER PRIMARY KEY AUTOINCREMENT,
-      name      TEXT NOT NULL UNIQUE,
-      iconId    INTEGER,
-      color     TEXT NOT NULL DEFAULT '#4F7CAC',
-      target    REAL,
-      saldo     REAL,
-      finished  TEXT DEFAULT NULL, -- ISO YYYY-MM-DD (cel osiągnięty)
-      closed    TEXT DEFAULT NULL, -- rozwiązana bez realizacji celu
-      FOREIGN KEY (iconId) REFERENCES app_icons(id)
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    name      TEXT NOT NULL UNIQUE,
+    iconId    INTEGER,
+    color     TEXT NOT NULL DEFAULT '#4F7CAC',
+    target    REAL,
+    saldo     REAL,
+    finished  TEXT DEFAULT NULL, -- ISO YYYY-MM-DD (cel osiągnięty)
+    closed    TEXT DEFAULT NULL, -- rozwiązana bez realizacji celu
+    entryId   INTEGER DEFAULT NULL REFERENCES entries(id) ON DELETE SET NULL,
+    FOREIGN KEY (iconId) REFERENCES app_icons(id)
     );
 
     ------------------------------
@@ -177,142 +174,6 @@ export const initDatabase = async () => {
       isDefault INTEGER NOT NULL DEFAULT 0,
       FOREIGN KEY (iconId) REFERENCES app_icons(id)
     );
-  `);
-
-  // --- TRIGGERS: ENTRIES ---
-  // INSERT/DELETE oraz UPDATE(amount) — ignorujemy wpisy finansowane z koperty (financedEnvelopeId IS NOT NULL)
-  await db.execAsync(`
--- AFTER INSERT
-CREATE TRIGGER IF NOT EXISTS trg_entries_ai
-AFTER INSERT ON entries
-BEGIN
-  INSERT INTO monthly_aggregates(year, month, income_total, expense_total)
-  VALUES (
-    CAST(strftime('%Y', NEW.date) AS INTEGER),
-    CAST(strftime('%m', NEW.date) AS INTEGER),
-    CASE
-      WHEN NEW.financedEnvelopeId IS NOT NULL THEN 0
-      ELSE CASE WHEN (SELECT c.positive
-                      FROM subcategories s JOIN categories c ON c.id = s.categoryId
-                      WHERE s.id = NEW.subcategoryId) = 1
-           THEN NEW.amount ELSE 0 END
-    END,
-    CASE
-      WHEN NEW.financedEnvelopeId IS NOT NULL THEN 0
-      ELSE CASE WHEN (SELECT c.positive
-                      FROM subcategories s JOIN categories c ON c.id = s.categoryId
-                      WHERE s.id = NEW.subcategoryId) = 0
-           THEN NEW.amount ELSE 0 END
-    END
-  )
-  ON CONFLICT(year, month) DO UPDATE SET
-    income_total  = income_total  + CASE
-                                      WHEN NEW.financedEnvelopeId IS NOT NULL THEN 0
-                                      ELSE CASE WHEN (SELECT c.positive FROM subcategories s JOIN categories c ON c.id = s.categoryId WHERE s.id = NEW.subcategoryId) = 1 THEN NEW.amount ELSE 0 END
-                                    END,
-    expense_total = expense_total + CASE
-                                      WHEN NEW.financedEnvelopeId IS NOT NULL THEN 0
-                                      ELSE CASE WHEN (SELECT c.positive FROM subcategories s JOIN categories c ON c.id = s.categoryId WHERE s.id = NEW.subcategoryId) = 0 THEN NEW.amount ELSE 0 END
-                                    END;
-END;
-
--- AFTER DELETE
-CREATE TRIGGER trg_entries_ad
-AFTER DELETE ON entries
-BEGIN
-  -- aktualizacja monthly_aggregates
-  INSERT INTO monthly_aggregates(year, month, income_total, expense_total)
-  VALUES (
-    CAST(strftime('%Y', OLD.date) AS INTEGER),
-    CAST(strftime('%m', OLD.date) AS INTEGER),
-    CASE
-      WHEN OLD.financedEnvelopeId IS NOT NULL THEN 0
-      ELSE CASE WHEN (SELECT c.positive
-                      FROM subcategories s JOIN categories c ON c.id = s.categoryId
-                      WHERE s.id = OLD.subcategoryId) = 1
-           THEN -OLD.amount ELSE 0 END
-    END,
-    CASE
-      WHEN OLD.financedEnvelopeId IS NOT NULL THEN 0
-      ELSE CASE WHEN (SELECT c.positive
-                      FROM subcategories s JOIN categories c ON c.id = s.categoryId
-                      WHERE s.id = OLD.subcategoryId) = 0
-           THEN -OLD.amount ELSE 0 END
-    END
-  )
-  ON CONFLICT(year, month) DO UPDATE SET
-    income_total  = income_total  + CASE
-                                      WHEN OLD.financedEnvelopeId IS NOT NULL THEN 0
-                                      ELSE CASE WHEN (SELECT c.positive FROM subcategories s JOIN categories c ON c.id = s.categoryId WHERE s.id = OLD.subcategoryId) = 1 THEN -OLD.amount ELSE 0 END
-                                    END,
-    expense_total = expense_total + CASE
-                                      WHEN OLD.financedEnvelopeId IS NOT NULL THEN 0
-                                      ELSE CASE WHEN (SELECT c.positive FROM subcategories s JOIN categories c ON c.id = s.categoryId WHERE s.id = OLD.subcategoryId) = 0 THEN -OLD.amount ELSE 0 END
-                                    END;
-
-  -- korekta salda koperty, jeśli kasowany wpis był WPŁATĄ do koperty
-  UPDATE envelopes
-  SET saldo = COALESCE(saldo, 0) - OLD.amount
-  WHERE OLD.depositEnvelopeId IS NOT NULL
-    AND OLD.subcategoryId = ${ENVELOPE_FUND_SUBCAT_ID}
-    AND id = OLD.depositEnvelopeId;
-END;
-
-
-
--- AFTER UPDATE — tylko gdy zmienia się amount
-CREATE TRIGGER IF NOT EXISTS trg_entries_au
-AFTER UPDATE OF amount ON entries
-WHEN OLD.amount != NEW.amount
-BEGIN
-  -- odejmij stary wpływ (jeśli nie był finansowany kopertą)
-  INSERT INTO monthly_aggregates(year, month, income_total, expense_total)
-  VALUES (
-    CAST(strftime('%Y', OLD.date) AS INTEGER),
-    CAST(strftime('%m', OLD.date) AS INTEGER),
-    CASE
-      WHEN OLD.financedEnvelopeId IS NOT NULL THEN 0
-      ELSE CASE WHEN (SELECT c.positive FROM subcategories s JOIN categories c ON c.id = s.categoryId WHERE s.id = OLD.subcategoryId) = 1 THEN -OLD.amount ELSE 0 END
-    END,
-    CASE
-      WHEN OLD.financedEnvelopeId IS NOT NULL THEN 0
-      ELSE CASE WHEN (SELECT c.positive FROM subcategories s JOIN categories c ON c.id = s.categoryId WHERE s.id = OLD.subcategoryId) = 0 THEN -OLD.amount ELSE 0 END
-    END
-  )
-  ON CONFLICT(year, month) DO UPDATE SET
-    income_total  = income_total  + CASE
-                                      WHEN OLD.financedEnvelopeId IS NOT NULL THEN 0
-                                      ELSE CASE WHEN (SELECT c.positive FROM subcategories s JOIN categories c ON c.id = s.categoryId WHERE s.id = OLD.subcategoryId) = 1 THEN -OLD.amount ELSE 0 END
-                                    END,
-    expense_total = expense_total + CASE
-                                      WHEN OLD.financedEnvelopeId IS NOT NULL THEN 0
-                                      ELSE CASE WHEN (SELECT c.positive FROM subcategories s JOIN categories c ON c.id = s.categoryId WHERE s.id = OLD.subcategoryId) = 0 THEN -OLD.amount ELSE 0 END
-                                    END;
-
-  -- dodaj nowy wpływ (jeśli nie jest finansowany kopertą)
-  INSERT INTO monthly_aggregates(year, month, income_total, expense_total)
-  VALUES (
-    CAST(strftime('%Y', NEW.date) AS INTEGER),
-    CAST(strftime('%m', NEW.date) AS INTEGER),
-    CASE
-      WHEN NEW.financedEnvelopeId IS NOT NULL THEN 0
-      ELSE CASE WHEN (SELECT c.positive FROM subcategories s JOIN categories c ON c.id = s.categoryId WHERE s.id = NEW.subcategoryId) = 1 THEN NEW.amount ELSE 0 END
-    END,
-    CASE
-      WHEN NEW.financedEnvelopeId IS NOT NULL THEN 0
-      ELSE CASE WHEN (SELECT c.positive FROM subcategories s JOIN categories c ON c.id = s.categoryId WHERE s.id = NEW.subcategoryId) = 0 THEN NEW.amount ELSE 0 END
-    END
-  )
-  ON CONFLICT(year, month) DO UPDATE SET
-    income_total  = income_total  + CASE
-                                      WHEN NEW.financedEnvelopeId IS NOT NULL THEN 0
-                                      ELSE CASE WHEN (SELECT c.positive FROM subcategories s JOIN categories c ON c.id = s.categoryId WHERE s.id = NEW.subcategoryId) = 1 THEN NEW.amount ELSE 0 END
-                                    END,
-    expense_total = expense_total + CASE
-                                      WHEN NEW.financedEnvelopeId IS NOT NULL THEN 0
-                                      ELSE CASE WHEN (SELECT c.positive FROM subcategories s JOIN categories c ON c.id = s.categoryId WHERE s.id = NEW.subcategoryId) = 0 THEN NEW.amount ELSE 0 END
-                                    END;
-END;
   `);
 
   await insertInitialData();

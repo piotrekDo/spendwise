@@ -1,3 +1,4 @@
+// screens/envelopes/EnvelopesHome.tsx
 import React, { useCallback, useState } from 'react';
 import {
   View,
@@ -16,6 +17,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import colors from '../../config/colors';
 import { getActiveEnvelopes, Envelope, addEnvelope, depositToEnvelope } from '../../services/envelopesService';
 import routes from '../../navigation/routes';
+
 type RouteParams = { month1?: number; year: number };
 
 const COLOR_PRESETS = ['#4F7CAC', '#7C4DFF', '#2E7D32', '#1565C0', '#B28704', '#C62828', '#8E24AA', '#00897B'];
@@ -33,7 +35,6 @@ export const EnvelopesHome = () => {
   const [newName, setNewName] = useState('');
   const [newTarget, setNewTarget] = useState(''); // string -> parsujemy przy zapisie
   const [initialDeposit, setInitialDeposit] = useState(''); // jw.
-  const [note, setNote] = useState('');
   const [selectedColor, setSelectedColor] = useState(COLOR_PRESETS[0]);
   const [saving, setSaving] = useState(false);
 
@@ -56,13 +57,10 @@ export const EnvelopesHome = () => {
     setNewName('');
     setNewTarget('');
     setInitialDeposit('');
-    setNote('');
     setSelectedColor(COLOR_PRESETS[0]);
   };
 
-  const handleAddEnvelope = () => {
-    setShowAdd(s => !s);
-  };
+  const handleAddEnvelope = () => setShowAdd(s => !s);
 
   const handleSaveEnvelope = async () => {
     if (!newName.trim()) {
@@ -90,11 +88,8 @@ export const EnvelopesHome = () => {
       const envelopeId = await addEnvelope(newName.trim(), selectedColor, targetNum ?? null);
 
       if (depositNum > 0) {
-        await depositToEnvelope(envelopeId, depositNum, {
-          note: note?.trim() || 'Startowe zasilenie',
-          year: year,
-          month1: month1,
-        });
+        // opis wpłaty generuje się automatycznie w serwisie
+        await depositToEnvelope(envelopeId, depositNum, { year, month1 });
       }
 
       await loadActiveEnvelopes();
@@ -119,7 +114,7 @@ export const EnvelopesHome = () => {
           <View style={styles.header}>
             <Text style={styles.headerText}>Aktywne koperty</Text>
             <TouchableOpacity style={styles.addButton} onPress={handleAddEnvelope}>
-              <MaterialCommunityIcons name='plus-circle-outline' size={26} color={colors.primary} />
+              <MaterialCommunityIcons name="plus-circle-outline" size={26} color={colors.primary} />
               <Text style={styles.addButtonText}>{showAdd ? 'Ukryj' : 'Dodaj'}</Text>
             </TouchableOpacity>
           </View>
@@ -130,8 +125,8 @@ export const EnvelopesHome = () => {
               <Text style={styles.formLabel}>Nazwa *</Text>
               <TextInput
                 style={styles.input}
-                placeholder='np. Telewizor'
-                placeholderTextColor='#8aa'
+                placeholder="np. Telewizor"
+                placeholderTextColor="#8aa"
                 value={newName}
                 onChangeText={setNewName}
               />
@@ -139,9 +134,9 @@ export const EnvelopesHome = () => {
               <Text style={styles.formLabel}>Cel (PLN)</Text>
               <TextInput
                 style={styles.input}
-                keyboardType='decimal-pad'
-                placeholder='np. 5000'
-                placeholderTextColor='#8aa'
+                keyboardType="decimal-pad"
+                placeholder="np. 5000"
+                placeholderTextColor="#8aa"
                 value={newTarget}
                 onChangeText={setNewTarget}
               />
@@ -149,22 +144,13 @@ export const EnvelopesHome = () => {
               <Text style={styles.formLabel}>Kwota startowa (PLN)</Text>
               <TextInput
                 style={styles.input}
-                keyboardType='decimal-pad'
-                placeholder='np. 300'
-                placeholderTextColor='#8aa'
+                keyboardType="decimal-pad"
+                placeholder="np. 300"
+                placeholderTextColor="#8aa"
                 value={initialDeposit}
                 onChangeText={setInitialDeposit}
               />
-
-              <Text style={styles.formLabel}>Notatka (opcjonalnie)</Text>
-              <TextInput
-                style={[styles.input, { height: 70 }]}
-                placeholder='np. „Pierwsza wpłata”'
-                placeholderTextColor='#8aa'
-                multiline
-                value={note}
-                onChangeText={setNote}
-              />
+              <Text style={styles.hint}>Opis wpłaty generuje się automatycznie.</Text>
 
               <Text style={styles.formLabel}>Kolor</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.colorsRow}>
@@ -207,10 +193,12 @@ export const EnvelopesHome = () => {
           ) : envelopes.length === 0 ? (
             <Text style={styles.info}>Brak aktywnych kopert</Text>
           ) : (
-            <ScrollView style={styles.scroll} keyboardShouldPersistTaps='handled'>
+            <ScrollView style={styles.scroll} keyboardShouldPersistTaps="handled">
               {envelopes.map(env => {
+                const saldo = Number(env.saldo ?? 0);
                 const hasTarget = typeof env.target === 'number' && isFinite(env.target) && env.target > 0;
-                const progress = hasTarget ? Math.min(1, Math.max(0, (env.saldo ?? 0) / env.target!)) : 0;
+                const p = hasTarget ? saldo / (env.target as number) : 0;
+                const progress = Math.max(0, Math.min(1, p)); // w liście klamrujemy do 100%
 
                 return (
                   <TouchableOpacity
@@ -229,7 +217,7 @@ export const EnvelopesHome = () => {
                     }
                   >
                     <MaterialCommunityIcons
-                      name='wallet-outline'
+                      name="wallet-outline"
                       size={22}
                       color={env.color || colors.textPimary}
                       style={{ marginRight: 8 }}
@@ -237,7 +225,7 @@ export const EnvelopesHome = () => {
                     <View style={{ flex: 1 }}>
                       <Text style={styles.envelopeName}>{env.name}</Text>
                       <Text style={styles.envelopeSaldo}>
-                        Saldo: {Number(env.saldo ?? 0).toFixed(2)}
+                        Saldo: {saldo.toFixed(2)}
                         {hasTarget ? ` / ${Number(env.target).toFixed(2)}` : ''} zł
                       </Text>
 
@@ -260,7 +248,7 @@ export const EnvelopesHome = () => {
           )}
 
           <View style={styles.actions}>
-            <TouchableOpacity onPress={handleClose}>
+            <TouchableOpacity onPress={handleClose} accessibilityRole="button">
               <Text style={styles.cancel}>✖</Text>
             </TouchableOpacity>
           </View>
@@ -284,7 +272,7 @@ const styles = StyleSheet.create({
   },
   modal: {
     backgroundColor: colors.background,
-    padding: 50,
+    padding: 20, // mniejszy, żeby nie „puchło”
     borderRadius: 12,
     width: '92%',
     maxHeight: '90%',
@@ -314,6 +302,7 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(255,255,255,0.12)',
   },
+  hint: { color: '#8aa', fontSize: 12, marginTop: 4 },
   colorsRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
   colorDot: {
     width: 26,
@@ -340,6 +329,7 @@ const styles = StyleSheet.create({
 
   actions: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 8 },
   cancel: { fontSize: 24, color: 'red' },
+
   progressTrack: {
     backgroundColor: '#2E2F36',
     borderRadius: 6,

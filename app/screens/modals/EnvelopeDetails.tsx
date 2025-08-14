@@ -1,28 +1,37 @@
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
-import { useRoute, useNavigation, useFocusEffect } from '@react-navigation/native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import colors from '../../config/colors';
-import { getEnvelopeDeposits, depositToEnvelope, getEnvelopeById } from '../../services/envelopesService';
-import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
+import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import Constants from 'expo-constants';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
+import colors from '../../config/colors';
 import { deleteEntry } from '../../services/entriesService';
+import { depositToEnvelope, getEnvelopeById, getEnvelopeDeposits } from '../../services/envelopesService';
 
 type RouteParams = { envelopeId: number; year: number; month1: number };
 
 export const EnvelopeDetails = () => {
   const route = useRoute();
   const navigation = useNavigation<any>();
-  const { envelopeId, year, month1 } = (route.params as RouteParams);
+  const { envelopeId, year, month1 } = route.params as RouteParams;
 
   const [envName, setEnvName] = useState('');
   const [envColor, setEnvColor] = useState('#4F7CAC');
   const [saldo, setSaldo] = useState(0);
   const [target, setTarget] = useState<number | null>(null);
 
-  const [entries, setEntries] = useState<Array<{ id:number; date:string; amount:number; note:string }>>([]);
+  const [entries, setEntries] = useState<Array<{ id: number; date: string; amount: number; note: string }>>([]);
   const [amount, setAmount] = useState('');
-  const [note, setNote] = useState('');
 
   const loadAll = async () => {
     const env = await getEnvelopeById(envelopeId);
@@ -36,7 +45,9 @@ export const EnvelopeDetails = () => {
     setEntries(list);
   };
 
-  useEffect(() => { loadAll(); }, [envelopeId, year, month1]);
+  useEffect(() => {
+    loadAll();
+  }, [envelopeId, year, month1]);
 
   // odśwież po powrocie na ekran
   useFocusEffect(
@@ -61,10 +72,10 @@ export const EnvelopeDetails = () => {
       return;
     }
     try {
-      await depositToEnvelope(envelopeId, val, { year, month1, note: note.trim() || 'Wpłata do koperty' });
-      setAmount(''); setNote('');
+      await depositToEnvelope(envelopeId, val, { year, month1 }); // bez note
+      setAmount('');
       await loadAll();
-    } catch (e:any) {
+    } catch (e: any) {
       Alert.alert('Błąd', e?.message || 'Nie udało się dodać wpłaty.');
     }
   };
@@ -73,14 +84,14 @@ export const EnvelopeDetails = () => {
     try {
       await deleteEntry(id);
       await loadAll();
-    } catch (e:any) {
+    } catch (e: any) {
       Alert.alert('Błąd', e?.message || 'Nie udało się usunąć wpisu.');
     }
   };
 
-  const renderRight = (id:number) => (
+  const renderRight = (id: number) => (
     <TouchableOpacity style={styles.deleteBtn} onPress={() => removeEntry(id)}>
-      <MaterialCommunityIcons name="trash-can-outline" size={24} color="#fff" />
+      <MaterialCommunityIcons name='trash-can-outline' size={24} color='#fff' />
     </TouchableOpacity>
   );
 
@@ -88,12 +99,14 @@ export const EnvelopeDetails = () => {
     <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       {/* Własny pasek nawigacji */}
       <View style={styles.topbar}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.iconBtn} accessibilityRole="button">
-          <MaterialCommunityIcons name="arrow-left" size={22} color={colors.textPimary} />
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.iconBtn} accessibilityRole='button'>
+          <MaterialCommunityIcons name='arrow-left' size={22} color={colors.textPimary} />
         </TouchableOpacity>
-        <Text style={styles.topbarTitle} numberOfLines={1}>{envName || 'Szczegóły koperty'}</Text>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.iconBtn} accessibilityRole="button">
-          <MaterialCommunityIcons name="close" size={22} color={colors.textPimary} />
+        <Text style={styles.topbarTitle} numberOfLines={1}>
+          {envName || 'Szczegóły koperty'}
+        </Text>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.iconBtn} accessibilityRole='button'>
+          <MaterialCommunityIcons name='close' size={22} color={colors.textPimary} />
         </TouchableOpacity>
       </View>
 
@@ -102,17 +115,16 @@ export const EnvelopeDetails = () => {
         {/* Header wewnątrz karty */}
         <View style={styles.headerRow}>
           <View style={[styles.iconBadge, { backgroundColor: envColor + '33', borderColor: envColor }]}>
-            <MaterialCommunityIcons name="wallet-outline" size={22} color={envColor} />
+            <MaterialCommunityIcons name='wallet-outline' size={22} color={envColor} />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.title}>{envName}</Text>
             <Text style={styles.saldo}>
-              Saldo: {saldo.toFixed(2)}{target != null ? ` / ${target.toFixed(2)}` : ''} zł
+              Saldo: {saldo.toFixed(2)}
+              {target != null ? ` / ${target.toFixed(2)}` : ''} zł
             </Text>
           </View>
-          {target != null && (
-            <Text style={styles.percent}>{percentLabel}%</Text>
-          )}
+          {target != null && <Text style={styles.percent}>{percentLabel}%</Text>}
         </View>
 
         {/* Pasek napełnienia (z nadmiarem) */}
@@ -134,21 +146,14 @@ export const EnvelopeDetails = () => {
         <View style={styles.addRow}>
           <TextInput
             style={[styles.input, { flex: 1 }]}
-            placeholder="Kwota"
-            placeholderTextColor="#8aa"
-            keyboardType="decimal-pad"
+            placeholder='Kwota'
+            placeholderTextColor='#8aa'
+            keyboardType='decimal-pad'
             value={amount}
             onChangeText={setAmount}
           />
-          <TextInput
-            style={[styles.input, { flex: 2, marginLeft: 8 }]}
-            placeholder="Notatka"
-            placeholderTextColor="#8aa"
-            value={note}
-            onChangeText={setNote}
-          />
           <TouchableOpacity style={[styles.addBtn, { backgroundColor: envColor }]} onPress={addDeposit}>
-            <MaterialCommunityIcons name="plus" size={18} color="#fff" />
+            <MaterialCommunityIcons name='plus' size={18} color='#fff' />
             <Text style={styles.addBtnText}>Dodaj</Text>
           </TouchableOpacity>
         </View>
@@ -164,7 +169,9 @@ export const EnvelopeDetails = () => {
                 <View style={{ width: 110 }}>
                   <Text style={styles.entryAmount}>{e.amount.toFixed(2)} zł</Text>
                 </View>
-                <Text style={styles.entryNote} numberOfLines={2}>{e.note}</Text>
+                <Text style={styles.entryNote} numberOfLines={2}>
+                  {e.note}
+                </Text>
               </View>
             </ReanimatedSwipeable>
           ))}
@@ -183,7 +190,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     paddingHorizontal: 12,
     paddingTop: Constants.statusBarHeight + 10,
-    paddingBottom: 12
+    paddingBottom: 12,
   },
 
   // topbar
@@ -195,10 +202,19 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   iconBtn: {
-    width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   topbarTitle: {
-    flex: 1, textAlign: 'center', color: colors.textPimary, fontSize: 16, fontWeight: '700', paddingHorizontal: 6,
+    flex: 1,
+    textAlign: 'center',
+    color: colors.textPimary,
+    fontSize: 16,
+    fontWeight: '700',
+    paddingHorizontal: 6,
   },
 
   // card container (żeby nie było full-bleed)
@@ -218,8 +234,13 @@ const styles = StyleSheet.create({
 
   headerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
   iconBadge: {
-    width: 36, height: 36, borderRadius: 8, alignItems: 'center', justifyContent: 'center',
-    marginRight: 10, borderWidth: 1,
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+    borderWidth: 1,
   },
   title: { color: colors.textPimary, fontSize: 18, fontWeight: '700' },
   saldo: { color: colors.textSecondary, marginTop: 2 },
@@ -241,22 +262,39 @@ const styles = StyleSheet.create({
   },
 
   // form
-  addRow: { flexDirection:'row', alignItems:'center', marginBottom: 10 },
+  addRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
   input: {
-    backgroundColor:'#182636', color:'#fff', borderRadius:10, paddingVertical:10, paddingHorizontal:10,
-    borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: '#182636',
+    color: '#fff',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.12)',
   },
   addBtn: {
-    marginLeft:8, paddingVertical:10, paddingHorizontal:12, borderRadius:10, flexDirection:'row', alignItems:'center', gap:6,
+    marginLeft: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
-  addBtnText: { color:'#fff', fontWeight:'700' },
+  addBtnText: { color: '#fff', fontWeight: '700' },
 
   // list
-  entryRow: { flexDirection:'row', alignItems:'center', paddingVertical:10, borderBottomWidth:0.5, borderColor:'#2a3a4a' },
+  entryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: 0.5,
+    borderColor: '#2a3a4a',
+  },
   entryDate: { color: colors.textSecondary },
-  entryAmount: { color:'#9EE493', fontWeight:'700' },
+  entryAmount: { color: '#9EE493', fontWeight: '700' },
   entryNote: { color: colors.textPimary, flex: 1, marginLeft: 8 },
 
-  deleteBtn: { backgroundColor:'#C62828', justifyContent:'center', alignItems:'center', width:64, height:'100%' },
-  empty: { color:'#8aa', textAlign:'center', marginTop: 12 },
+  deleteBtn: { backgroundColor: '#C62828', justifyContent: 'center', alignItems: 'center', width: 64, height: '100%' },
+  empty: { color: '#8aa', textAlign: 'center', marginTop: 12 },
 });
