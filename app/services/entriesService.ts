@@ -1,5 +1,5 @@
 import { getDb } from '../database/db';
-import { ENVELOPE_FUND_SUBCAT_ID } from '../config/constants';
+import { ENVELOPE_FUND_SUBCAT_ID, OTHER_INCOME_SUBCAT_ID } from '../config/constants';
 
 export type Entry = {
   id: number;
@@ -124,12 +124,10 @@ export const getSelectedCategorySpendings = async (categoryId: number, startDate
   return results as Entry[];
 };
 
-// 1:1 z trg_entries_ad (DELETE)
 export const deleteEntry = async (id: number): Promise<void> => {
   const db = getDb();
-  await db.execAsync('BEGIN');
+  await db.execAsync('BEGIN IMMEDIATE');
   try {
-    // Pobierz OLD
     const oldRow = await db.getFirstAsync(
       `SELECT id, date, amount, subcategoryId, financedEnvelopeId, depositEnvelopeId
        FROM entries
@@ -142,24 +140,153 @@ export const deleteEntry = async (id: number): Promise<void> => {
     }
 
     const { date, amount, subcategoryId, financedEnvelopeId, depositEnvelopeId } = oldRow as {
-      date: string; amount: number; subcategoryId: number; financedEnvelopeId?: number | null; depositEnvelopeId?: number | null;
+      date: string; amount: number; subcategoryId: number;
+      financedEnvelopeId?: number | null; depositEnvelopeId?: number | null;
     };
 
-    // Usuń wpis
+    const { year, month } = yymmFromISO(date);
+    const ym = date.slice(0, 7);
+
+    // --- A) USUNIĘCIE ZAKUPU FINANSOWANEGO KOPERTĄ ---
+    if (financedEnvelopeId != null) {
+      const envId = financedEnvelopeId;
+
+      // Suma depozytów i zakupów PRZED usunięciem (do wyliczenia 'rest' i 'reduce')
+      const depSumRow = await db.getFirstAsync(
+        `SELECT COALESCE(SUM(amount),0) AS s
+           FROM entries
+          WHERE depositEnvelopeId = ? AND subcategoryId = ${ENVELOPE_FUND_SUBCAT_ID}`,
+        [envId]
+      ) as { s?: number } | null;
+      const buySumRow = await db.getFirstAsync(
+        `SELECT COALESCE(SUM(amount),0) AS s
+           FROM entries
+          WHERE financedEnvelopeId = ?`,
+        [envId]
+      ) as { s?: number } | null;
+
+      const totalDepositsAll = Number(depSumRow?.s ?? 0);
+      const totalPurchasesAll = Number(buySumRow?.s ?? 0); // zawiera TEN zakup
+      const saldoBefore = totalDepositsAll - totalPurchasesAll;
+
+      // 'rest' to nadwyżka salda po zakupie (przed korektami reszty/redukcji)
+      const rest = Math.max(0, saldoBefore - amount);
+
+      // 1) Usuń sam zakup (NIE wpływa na agregaty)
+      await db.runAsync(`DELETE FROM entries WHERE id = ?`, [id]);
+
+      // 2) Cofnij „resztę” z tego miesiąca (jeśli była) i skoryguj agregaty
+      const restEntry = await db.getFirstAsync(
+        `SELECT id, amount
+           FROM entries
+          WHERE subcategoryId = ${OTHER_INCOME_SUBCAT_ID}
+            AND substr(date,1,7) = ?
+            AND description LIKE ?
+            AND depositEnvelopeId IS NULL
+            AND financedEnvelopeId IS NULL
+          LIMIT 1`,
+        [ym, `Reszta z koperty #${envId}%`]
+      ) as { id: number; amount: number } | undefined;
+
+      const restLeft = Number(restEntry?.amount ?? 0);
+      if (restEntry) {
+        await db.runAsync(`DELETE FROM entries WHERE id = ?`, [restEntry.id]);
+        const posIncome = await getPositiveForSubcategory(OTHER_INCOME_SUBCAT_ID);
+        const incDelta = posIncome === 1 ? -restLeft : 0;
+        const expDelta = posIncome === 0 ? -restLeft : 0;
+        await upsertMonthlyAggregates(year, month, incDelta, expDelta);
+      }
+
+      // 3) Odtwórz miesięczny depozyt o 'reduce' (jeśli wcześniej był ucięty)
+      const reduce = Math.max(0, rest - restLeft);
+      if (reduce > 0) {
+        const depEntry = await db.getFirstAsync(
+          `SELECT id, amount
+             FROM entries
+            WHERE depositEnvelopeId = ?
+              AND subcategoryId = ${ENVELOPE_FUND_SUBCAT_ID}
+              AND substr(date,1,7) = ?
+            LIMIT 1`,
+          [envId, ym]
+        ) as { id: number; amount: number } | undefined;
+
+        if (depEntry) {
+          const envNameRow = await db.getFirstAsync(`SELECT name FROM envelopes WHERE id = ?`, [envId]) as { name?: string } | null;
+          const newAmt = Number(depEntry.amount) + reduce;
+          const autoDesc = `Zasilenie koperty #${envId} ${envNameRow?.name ?? ''}`;
+
+          await db.runAsync(
+            `UPDATE entries SET amount = ?, description = ? WHERE id = ?`,
+            [newAmt, autoDesc, depEntry.id]
+          );
+
+          const posDep = await getPositiveForSubcategory(ENVELOPE_FUND_SUBCAT_ID); // zwykle 0 (wydatek)
+          const incDeltaDep = posDep === 1 ? reduce : 0;
+          const expDeltaDep = posDep === 0 ? reduce : 0;
+          await upsertMonthlyAggregates(year, month, incDeltaDep, expDeltaDep);
+        }
+      }
+
+      // 4) Przelicz saldo po zmianach
+      const depSum2 = await db.getFirstAsync(
+        `SELECT COALESCE(SUM(amount),0) AS s
+           FROM entries
+          WHERE depositEnvelopeId = ? AND subcategoryId = ${ENVELOPE_FUND_SUBCAT_ID}`,
+        [envId]
+      ) as { s?: number } | null;
+      const buySum2 = await db.getFirstAsync(
+        `SELECT COALESCE(SUM(amount),0) AS s
+           FROM entries
+          WHERE financedEnvelopeId = ?`,
+        [envId]
+      ) as { s?: number } | null;
+      const newSaldo = Number(depSum2?.s ?? 0) - Number(buySum2?.s ?? 0);
+
+      // 5) Otwórz kopertę, jeśli trzeba (poprawka: obsługa legacy bez entryId)
+      const envState = await db.getFirstAsync(
+        `SELECT entryId, finished FROM envelopes WHERE id = ?`,
+        [envId]
+      ) as { entryId?: number | null; finished?: string | null } | null;
+
+      // policz ile pozostało zakupów finansowanych tą kopertą
+      const finCntRow = await db.getFirstAsync(
+        `SELECT COUNT(*) AS cnt FROM entries WHERE financedEnvelopeId = ?`,
+        [envId]
+      ) as { cnt?: number } | null;
+      const finCountAfter = Number(finCntRow?.cnt ?? 0);
+
+      const shouldReopen =
+        (envState?.entryId ?? null) === id               // typowo: koperta wskazywała właśnie ten zakup
+        || ((envState?.entryId ?? null) == null && finCountAfter === 0); // fallback: brak entryId, i nie ma innych zakupów
+
+      if (shouldReopen) {
+        await db.runAsync(
+          `UPDATE envelopes
+              SET saldo = ?, finished = NULL, entryId = NULL
+            WHERE id = ?`,
+          [newSaldo, envId]
+        );
+      } else {
+        await db.runAsync(
+          `UPDATE envelopes SET saldo = ? WHERE id = ?`,
+          [newSaldo, envId]
+        );
+      }
+
+      await db.execAsync('COMMIT');
+      return;
+    }
+
+    // --- B) Zwykły wpis (nie finansowany kopertą) ---
     await db.runAsync(`DELETE FROM entries WHERE id = ?`, [id]);
 
-    // Agregaty miesięczne (cofnięcie wpływu)
-    const { year, month } = yymmFromISO(date);
-    let incDelta = 0, expDelta = 0;
-
-    if (financedEnvelopeId == null) {
-      const positive = await getPositiveForSubcategory(subcategoryId);
-      if (positive === 1) incDelta = -amount;
-      else expDelta = -amount;
-    }
+    // Cofnij wpływ do agregatów
+    const positive = await getPositiveForSubcategory(subcategoryId);
+    const incDelta = positive === 1 ? -amount : 0;
+    const expDelta = positive === 0 ? -amount : 0;
     await upsertMonthlyAggregates(year, month, incDelta, expDelta);
 
-    // Korekta salda koperty jeśli to była WPŁATA do koperty (1:1 jak w triggerze)
+    // Jeżeli to była WPŁATA do koperty → obniż saldo koperty
     if (depositEnvelopeId != null && subcategoryId === ENVELOPE_FUND_SUBCAT_ID) {
       await db.runAsync(
         `UPDATE envelopes SET saldo = COALESCE(saldo, 0) - ? WHERE id = ?`,
