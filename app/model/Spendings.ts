@@ -8,6 +8,7 @@ export type DisplayCategory = {
   color: string;
   limit: number | null;
   sum: number;
+  envelopesSum: number;
   positive: boolean;
   isDefault: boolean;
   subcategories: DisplaySubcategory[];
@@ -22,4 +23,5 @@ export type DisplaySubcategory = {
   color: string;
   isDefault: boolean;
   sum: number;
+  envelopesSum: number;
 };

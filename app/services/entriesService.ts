@@ -3,16 +3,50 @@ import { ENVELOPE_FUND_SUBCAT_ID, OTHER_INCOME_SUBCAT_ID } from '../config/const
 
 export type Entry = {
   id: number;
-  amount: number;
-  description: string;
   date: string;
+  amount: number;
   subcategoryId: number;
   subcategoryName: string;
   subcategoryIcon: string;
   categoryId: number;
   categoryName: string;
   categoryIcon: string;
+  description: string;
+  isArchived: boolean;
+  depositEnvelopeId: number | null;
+  financedEnvelopeId: number | null;
 };
+
+const mapEntry = (r: any): Entry => {
+  return {
+    id: r.id,
+    date: r.date,
+    amount: Number(r.amount),
+    description: r.description ?? null,
+    isArchived: !!r.isArchived,
+    depositEnvelopeId: r.depositEnvelopeId ?? null,
+    financedEnvelopeId: r.financedEnvelopeId ?? null,
+    subcategoryId: r.subcategoryId,
+    subcategoryName: r.subcategoryName,
+    subcategoryIcon: r.subcategoryIcon,
+    categoryId: r.categoryId,
+    categoryName: r.categoryName,
+    categoryIcon: r.categoryIcon,
+  };
+};
+
+const SELECT_ENTRY = `
+    SELECT 
+      e.id, e.date, e.amount, e.description, e.isArchived,
+      e.depositEnvelopeId, e.financedEnvelopeId,
+      s.id AS subcategoryId, s.name AS subcategoryName, ai1.name AS subcategoryIcon,
+      c.id AS categoryId, c.name AS categoryName, ai2.name AS categoryIcon
+    FROM entries e
+    JOIN subcategories s ON e.subcategoryId = s.id
+    JOIN app_icons ai1 ON s.iconId = ai1.id
+    JOIN categories c ON s.categoryId = c.id
+    JOIN app_icons ai2 ON c.iconId = ai2.id
+`;
 
 // --- helpers (wewnętrzne, nieeksportowane) ---
 
@@ -87,41 +121,25 @@ export const getSpendingsInRange = async (startDate: string, endDate: string): P
   const db = getDb();
 
   const query = `
-    SELECT 
-      e.id, e.amount, e.description, e.date, 
-      s.id AS subcategoryId, s.name AS subcategoryName, ai1.name AS subcategoryIcon,
-      c.id AS categoryId, c.name AS categoryName, ai2.name AS categoryIcon
-    FROM entries e
-    JOIN subcategories s ON e.subcategoryId = s.id
-    JOIN app_icons ai1 ON s.iconId = ai1.id
-    JOIN categories c ON s.categoryId = c.id
-    JOIN app_icons ai2 ON c.iconId = ai2.id
+    ${SELECT_ENTRY}
     WHERE e.date BETWEEN ? AND ?
     ORDER BY e.date DESC, e.id DESC
   `;
 
-  const results = await db.getAllAsync(query, [startDate, endDate]);
-  return results as Entry[];
+  const rows = await db.getAllAsync(query, [startDate, endDate]);
+  return rows.map((r: any) => mapEntry(r));
 };
 
 export const getSelectedCategorySpendings = async (categoryId: number, startDate: string, endDate: string) => {
   const db = getDb();
   const query = `
-    SELECT 
-      e.id, e.amount, e.description, e.date, 
-      s.id AS subcategoryId, s.name AS subcategoryName, ai1.name AS subcategoryIcon,
-      c.id AS categoryId, c.name AS categoryName, ai2.name AS categoryIcon
-    FROM entries e
-    JOIN subcategories s ON e.subcategoryId = s.id
-    JOIN app_icons ai1 ON s.iconId = ai1.id
-    JOIN categories c ON s.categoryId = c.id
-    JOIN app_icons ai2 ON c.iconId = ai2.id
+    ${SELECT_ENTRY}
     WHERE s.categoryId = ? AND e.date BETWEEN ? AND ?
     ORDER BY e.date DESC, e.id DESC
   `;
 
-  const results = await db.getAllAsync(query, [categoryId, startDate, endDate]);
-  return results as Entry[];
+  const rows = await db.getAllAsync(query, [categoryId, startDate, endDate]);
+  return rows.map((r: any) => mapEntry(r));
 };
 
 export const deleteEntry = async (id: number): Promise<void> => {
@@ -140,8 +158,11 @@ export const deleteEntry = async (id: number): Promise<void> => {
     }
 
     const { date, amount, subcategoryId, financedEnvelopeId, depositEnvelopeId } = oldRow as {
-      date: string; amount: number; subcategoryId: number;
-      financedEnvelopeId?: number | null; depositEnvelopeId?: number | null;
+      date: string;
+      amount: number;
+      subcategoryId: number;
+      financedEnvelopeId?: number | null;
+      depositEnvelopeId?: number | null;
     };
 
     const { year, month } = yymmFromISO(date);
@@ -152,18 +173,18 @@ export const deleteEntry = async (id: number): Promise<void> => {
       const envId = financedEnvelopeId;
 
       // Suma depozytów i zakupów PRZED usunięciem (do wyliczenia 'rest' i 'reduce')
-      const depSumRow = await db.getFirstAsync(
+      const depSumRow = (await db.getFirstAsync(
         `SELECT COALESCE(SUM(amount),0) AS s
            FROM entries
           WHERE depositEnvelopeId = ? AND subcategoryId = ${ENVELOPE_FUND_SUBCAT_ID}`,
         [envId]
-      ) as { s?: number } | null;
-      const buySumRow = await db.getFirstAsync(
+      )) as { s?: number } | null;
+      const buySumRow = (await db.getFirstAsync(
         `SELECT COALESCE(SUM(amount),0) AS s
            FROM entries
           WHERE financedEnvelopeId = ?`,
         [envId]
-      ) as { s?: number } | null;
+      )) as { s?: number } | null;
 
       const totalDepositsAll = Number(depSumRow?.s ?? 0);
       const totalPurchasesAll = Number(buySumRow?.s ?? 0); // zawiera TEN zakup
@@ -176,7 +197,7 @@ export const deleteEntry = async (id: number): Promise<void> => {
       await db.runAsync(`DELETE FROM entries WHERE id = ?`, [id]);
 
       // 2) Cofnij „resztę” z tego miesiąca (jeśli była) i skoryguj agregaty
-      const restEntry = await db.getFirstAsync(
+      const restEntry = (await db.getFirstAsync(
         `SELECT id, amount
            FROM entries
           WHERE subcategoryId = ${OTHER_INCOME_SUBCAT_ID}
@@ -186,7 +207,7 @@ export const deleteEntry = async (id: number): Promise<void> => {
             AND financedEnvelopeId IS NULL
           LIMIT 1`,
         [ym, `Reszta z koperty #${envId}%`]
-      ) as { id: number; amount: number } | undefined;
+      )) as { id: number; amount: number } | undefined;
 
       const restLeft = Number(restEntry?.amount ?? 0);
       if (restEntry) {
@@ -200,7 +221,7 @@ export const deleteEntry = async (id: number): Promise<void> => {
       // 3) Odtwórz miesięczny depozyt o 'reduce' (jeśli wcześniej był ucięty)
       const reduce = Math.max(0, rest - restLeft);
       if (reduce > 0) {
-        const depEntry = await db.getFirstAsync(
+        const depEntry = (await db.getFirstAsync(
           `SELECT id, amount
              FROM entries
             WHERE depositEnvelopeId = ?
@@ -208,17 +229,20 @@ export const deleteEntry = async (id: number): Promise<void> => {
               AND substr(date,1,7) = ?
             LIMIT 1`,
           [envId, ym]
-        ) as { id: number; amount: number } | undefined;
+        )) as { id: number; amount: number } | undefined;
 
         if (depEntry) {
-          const envNameRow = await db.getFirstAsync(`SELECT name FROM envelopes WHERE id = ?`, [envId]) as { name?: string } | null;
+          const envNameRow = (await db.getFirstAsync(`SELECT name FROM envelopes WHERE id = ?`, [envId])) as {
+            name?: string;
+          } | null;
           const newAmt = Number(depEntry.amount) + reduce;
           const autoDesc = `Zasilenie koperty #${envId} ${envNameRow?.name ?? ''}`;
 
-          await db.runAsync(
-            `UPDATE entries SET amount = ?, description = ? WHERE id = ?`,
-            [newAmt, autoDesc, depEntry.id]
-          );
+          await db.runAsync(`UPDATE entries SET amount = ?, description = ? WHERE id = ?`, [
+            newAmt,
+            autoDesc,
+            depEntry.id,
+          ]);
 
           const posDep = await getPositiveForSubcategory(ENVELOPE_FUND_SUBCAT_ID); // zwykle 0 (wydatek)
           const incDeltaDep = posDep === 1 ? reduce : 0;
@@ -228,36 +252,35 @@ export const deleteEntry = async (id: number): Promise<void> => {
       }
 
       // 4) Przelicz saldo po zmianach
-      const depSum2 = await db.getFirstAsync(
+      const depSum2 = (await db.getFirstAsync(
         `SELECT COALESCE(SUM(amount),0) AS s
            FROM entries
           WHERE depositEnvelopeId = ? AND subcategoryId = ${ENVELOPE_FUND_SUBCAT_ID}`,
         [envId]
-      ) as { s?: number } | null;
-      const buySum2 = await db.getFirstAsync(
+      )) as { s?: number } | null;
+      const buySum2 = (await db.getFirstAsync(
         `SELECT COALESCE(SUM(amount),0) AS s
            FROM entries
           WHERE financedEnvelopeId = ?`,
         [envId]
-      ) as { s?: number } | null;
+      )) as { s?: number } | null;
       const newSaldo = Number(depSum2?.s ?? 0) - Number(buySum2?.s ?? 0);
 
       // 5) Otwórz kopertę, jeśli trzeba (poprawka: obsługa legacy bez entryId)
-      const envState = await db.getFirstAsync(
-        `SELECT entryId, finished FROM envelopes WHERE id = ?`,
-        [envId]
-      ) as { entryId?: number | null; finished?: string | null } | null;
+      const envState = (await db.getFirstAsync(`SELECT entryId, finished FROM envelopes WHERE id = ?`, [envId])) as {
+        entryId?: number | null;
+        finished?: string | null;
+      } | null;
 
       // policz ile pozostało zakupów finansowanych tą kopertą
-      const finCntRow = await db.getFirstAsync(
-        `SELECT COUNT(*) AS cnt FROM entries WHERE financedEnvelopeId = ?`,
-        [envId]
-      ) as { cnt?: number } | null;
+      const finCntRow = (await db.getFirstAsync(`SELECT COUNT(*) AS cnt FROM entries WHERE financedEnvelopeId = ?`, [
+        envId,
+      ])) as { cnt?: number } | null;
       const finCountAfter = Number(finCntRow?.cnt ?? 0);
 
       const shouldReopen =
-        (envState?.entryId ?? null) === id               // typowo: koperta wskazywała właśnie ten zakup
-        || ((envState?.entryId ?? null) == null && finCountAfter === 0); // fallback: brak entryId, i nie ma innych zakupów
+        (envState?.entryId ?? null) === id || // typowo: koperta wskazywała właśnie ten zakup
+        ((envState?.entryId ?? null) == null && finCountAfter === 0); // fallback: brak entryId, i nie ma innych zakupów
 
       if (shouldReopen) {
         await db.runAsync(
@@ -267,10 +290,7 @@ export const deleteEntry = async (id: number): Promise<void> => {
           [newSaldo, envId]
         );
       } else {
-        await db.runAsync(
-          `UPDATE envelopes SET saldo = ? WHERE id = ?`,
-          [newSaldo, envId]
-        );
+        await db.runAsync(`UPDATE envelopes SET saldo = ? WHERE id = ?`, [newSaldo, envId]);
       }
 
       await db.execAsync('COMMIT');
@@ -288,10 +308,10 @@ export const deleteEntry = async (id: number): Promise<void> => {
 
     // Jeżeli to była WPŁATA do koperty → obniż saldo koperty
     if (depositEnvelopeId != null && subcategoryId === ENVELOPE_FUND_SUBCAT_ID) {
-      await db.runAsync(
-        `UPDATE envelopes SET saldo = COALESCE(saldo, 0) - ? WHERE id = ?`,
-        [amount, depositEnvelopeId]
-      );
+      await db.runAsync(`UPDATE envelopes SET saldo = COALESCE(saldo, 0) - ? WHERE id = ?`, [
+        amount,
+        depositEnvelopeId,
+      ]);
     }
 
     await db.execAsync('COMMIT');
@@ -320,7 +340,10 @@ export const updateEntryAmount = async (id: number, newAmount: number): Promise<
     }
 
     const old = oldRow as {
-      date: string; amount: number; subcategoryId: number; financedEnvelopeId?: number | null;
+      date: string;
+      amount: number;
+      subcategoryId: number;
+      financedEnvelopeId?: number | null;
     };
 
     if (old.amount === newAmount) {

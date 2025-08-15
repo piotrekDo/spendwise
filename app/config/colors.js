@@ -6,4 +6,5 @@ export default {
   textSecondary: '#9CA1B2',
   primary: '#2ECC71',
   secondary: '#16A085',
+  envelope: '#1565c0',
 };

@@ -32,7 +32,7 @@ export const CategoryDetailsModal = ({ data, onClose, onRefresh }: Props) => {
       containerStyle={{ marginBottom: 10 }}
       overshootRight={false}
     >
-      <Animated.View style={styles.entryItem}>
+      <Animated.View style={[styles.entryItem, {backgroundColor: !item.financedEnvelopeId ? '#2A2C33' : colors.envelope }]}>
         <View>
           <Text style={styles.amount}>{item.amount.toFixed(2)} zł</Text>
           <View style={styles.subcategory}>
@@ -94,7 +94,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   entryItem: {
-    backgroundColor: '#2A2C33',
     padding: 12,
     borderRadius: 8,
     flexDirection: 'row',

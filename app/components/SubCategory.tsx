@@ -12,22 +12,40 @@ interface Props {
 
 export const SubCategory = ({ sub, openAddModal }: Props) => {
   return (
-    <View style={styles.subItem} key={sub.id}>
-      <View style={styles.subLeft}>
-        <MaterialCommunityIcons name={sub.icon} size={20} color={sub.color} />
-        <Text style={styles.subName}>{sub.name}</Text>
+    <View key={sub.id}>
+      <View style={styles.subItem}>
+        <View style={styles.subLeft}>
+          <MaterialCommunityIcons name={sub.icon} size={20} color={sub.color} />
+          <Text style={styles.subName}>{sub.name}</Text>
+        </View>
+        <View style={styles.subRight}>
+          <Text style={styles.subSum}>{sub.sum} zł</Text>
+          <TouchableOpacity
+            disabled={sub.id === ENVELOPE_FUND_SUBCAT_ID}
+            onPress={() => {
+              openAddModal(sub.id);
+            }}
+          >
+            <MaterialCommunityIcons
+              name='plus-circle-outline'
+              size={26}
+              color={sub.id !== ENVELOPE_FUND_SUBCAT_ID ? colors.primary : 'rgba(54, 192, 36, 0.3)'}
+            />
+          </TouchableOpacity>
+        </View>
       </View>
-      <View style={styles.subRight}>
-        <Text style={styles.subSum}>{sub.sum} zł</Text>
-        <TouchableOpacity
-          disabled={sub.id === ENVELOPE_FUND_SUBCAT_ID}
-          onPress={() => {
-            openAddModal(sub.id);
-          }}
-        >
-          <MaterialCommunityIcons name='plus-circle-outline' size={26} color={sub.id !== ENVELOPE_FUND_SUBCAT_ID ? colors.primary : 'rgba(54, 192, 36, 0.3)'} />
-        </TouchableOpacity>
-      </View>
+
+      {sub.envelopesSum != null && sub.envelopesSum > 0  && (
+        <View style={[styles.subItem, { marginTop: -15 }]}>
+          <View style={[styles.subLeft, { paddingLeft: 30 }]}>
+            <MaterialCommunityIcons name={'email-outline'} size={16} color={colors.envelope} />
+            <Text style={[styles.subName, {fontSize: 12, color: colors.envelope}]}>{sub.name}</Text>
+          </View>
+          <View style={[styles.subRight, { paddingRight: 26 }]}>
+            <Text style={[styles.subSum, {fontSize: 12, color: colors.envelope}]}>{sub.envelopesSum} zł</Text>
+          </View>
+        </View>
+      )}
     </View>
   );
 };

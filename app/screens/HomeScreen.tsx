@@ -72,15 +72,45 @@ export const HomeScreen = () => {
 
   const loadData = async () => {
     const { start, end } = getMonthDateRange(year, month0);
+
+    // Pobierz wpisy (dobrze też przefiltrować isArchived=0 w kwerendzie, jeśli nie chcesz archiwalnych)
     const spendings: Entry[] = await getSpendingsInRange(start, end);
 
-    const merged = skeleton.map(cat => {
+    // Zbierz sumy per subkategoria w jednym przebiegu
+    // map: subId -> { normalSum, financedSum }
+    const bySub = new Map<number, { normal: number; financed: number }>();
+    for (const e of spendings) {
+      const rec = bySub.get(e.subcategoryId) ?? { normal: 0, financed: 0 };
+      if (e.financedEnvelopeId != null) {
+        rec.financed += Number(e.amount) || 0;
+      } else {
+        rec.normal += Number(e.amount) || 0;
+      }
+      bySub.set(e.subcategoryId, rec);
+    }
+
+    // Złóż wynik na bazie skeletonu
+    const merged: DisplayCategory[] = skeleton.map(cat => {
+      let catEnvelopeSum = 0;
+
       const updatedSub = cat.subcategories.map(sub => {
-        const sum = spendings.filter(e => e.subcategoryId === sub.id).reduce((acc, e) => acc + e.amount, 0);
-        return { ...sub, sum };
+        const rec = bySub.get(sub.id) ?? { normal: 0, financed: 0 };
+        catEnvelopeSum += rec.financed;
+        return {
+          ...sub,
+          sum: rec.normal,
+          envelopesSum: rec.financed,
+        };
       });
+
       const sum = updatedSub.reduce((acc, s) => acc + s.sum, 0);
-      return { ...cat, subcategories: updatedSub, sum };
+
+      return {
+        ...cat,
+        subcategories: updatedSub,
+        sum,
+        envelopesSum: catEnvelopeSum,
+      };
     });
 
     setData(merged);
@@ -182,7 +212,7 @@ export const HomeScreen = () => {
             expanded={expanded}
             toggleExpand={toggleExpand}
             openAddModal={openAddModal}
-            openCategoryModal={() => openCategoryDetailsModal(cat.id)}
+            openCategoryDetailsModal={() => openCategoryDetailsModal(cat.id)}
           />
         ))}
       </ScrollView>
@@ -238,7 +268,7 @@ const styles = StyleSheet.create({
   },
   smallLabel: { color: colors.white, opacity: 0.85, fontSize: 11 },
   smallValue: { color: colors.white, fontSize: 12, fontWeight: '700', marginTop: 2 },
-  vaultSmallCard: { backgroundColor: '#1565c0' },
+  vaultSmallCard: { backgroundColor: colors.envelope },
   totalSmallCard: { backgroundColor: '#b28704' },
   vaultDetails: {
     backgroundColor: '#0e2433',
@@ -264,7 +294,7 @@ const styles = StyleSheet.create({
   largeLabel: { color: colors.white, opacity: 0.85, fontSize: 12 },
   largeValue: { color: colors.white, fontSize: 20, fontWeight: '700', marginTop: 2 },
   envelopeButton: {
-    backgroundColor: '#1565c0',
+    backgroundColor: colors.envelope,
     width: 100,
     height: 100,
     borderRadius: '50%',

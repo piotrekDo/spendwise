@@ -7,19 +7,19 @@ export const initDatabase = async () => {
   db = await SQLite.openDatabaseAsync('budget.db');
   await db.execAsync(`PRAGMA foreign_keys = ON;`);
 
-  await db.execAsync(`
-    DROP TABLE IF EXISTS preset_subcategories;
-    DROP TABLE IF EXISTS preset_categories;
-    DROP TABLE IF EXISTS category_limits;
-    DROP TABLE IF EXISTS monthly_aggregates;
-    DROP TABLE IF EXISTS envelope_transfers;
-    DROP TABLE IF EXISTS entries;
-    DROP TABLE IF EXISTS envelopes;
-    DROP TABLE IF EXISTS subcategories;
-    DROP TABLE IF EXISTS categories;
-    DROP TABLE IF EXISTS app_icons;
-    DROP TABLE IF EXISTS config;
-  `);
+  // await db.execAsync(`
+  //   DROP TABLE IF EXISTS preset_subcategories;
+  //   DROP TABLE IF EXISTS preset_categories;
+  //   DROP TABLE IF EXISTS category_limits;
+  //   DROP TABLE IF EXISTS monthly_aggregates;
+  //   DROP TABLE IF EXISTS envelope_transfers;
+  //   DROP TABLE IF EXISTS entries;
+  //   DROP TABLE IF EXISTS envelopes;
+  //   DROP TABLE IF EXISTS subcategories;
+  //   DROP TABLE IF EXISTS categories;
+  //   DROP TABLE IF EXISTS app_icons;
+  //   DROP TABLE IF EXISTS config;
+  // `);
 
   await db.execAsync(`
     ------------------------------

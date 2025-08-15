@@ -10,10 +10,10 @@ interface Props {
   expanded: number[];
   toggleExpand: (id: number) => void;
   openAddModal: (subId: number) => void;
-  openCategoryModal: (categoryId: number) => void;
+  openCategoryDetailsModal: (categoryId: number) => void;
 }
 
-export const Category = ({ item, expanded, toggleExpand, openAddModal, openCategoryModal }: Props) => {
+export const Category = ({ item, expanded, toggleExpand, openAddModal, openCategoryDetailsModal }: Props) => {
   // defensywnie: limit może być null/undefined/0
   const hasLimit = useMemo(
     () => typeof item.limit === 'number' && isFinite(item.limit) && item.limit > 0,
@@ -37,20 +37,33 @@ export const Category = ({ item, expanded, toggleExpand, openAddModal, openCateg
 
   return (
     <View key={item.id}>
-      <View style={styles.card}>
-        <TouchableOpacity style={styles.cardLeft} onPress={() => openCategoryModal(item.id)} accessibilityRole='button'>
-          <MaterialCommunityIcons name={item.icon} size={28} color={item.color} />
-        </TouchableOpacity>
+      <View style={styles.cardContainer}>
+        <View style={styles.card}>
+          <TouchableOpacity
+            style={styles.cardLeft}
+            onPress={() => openCategoryDetailsModal(item.id)}
+            accessibilityRole='button'
+          >
+            <MaterialCommunityIcons name={item.icon} size={28} color={item.color} />
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.cardRight}
-          onPress={() => toggleExpand(item.id)}
-          activeOpacity={0.8}
-          accessibilityRole='button'
-        >
-          <Text style={styles.cardName}>{item.name}</Text>
-          <Text style={styles.cardSum}>{item.sum.toFixed(2)} zł</Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.cardRight}
+            onPress={() => toggleExpand(item.id)}
+            activeOpacity={0.8}
+            accessibilityRole='button'
+          >
+            <Text style={styles.cardName}>{item.name}</Text>
+            <Text style={styles.cardSum}>{item.sum.toFixed(2)} zł</Text>
+          </TouchableOpacity>
+        </View>
+        {item.envelopesSum > 0 && (
+          <View style={styles.envelopeContainer}>
+            <Text style={styles.envelopeText}>Wydatki z kopert</Text>
+            <Text style={styles.envelopeSum}>{item.envelopesSum.toFixed(2)} zł</Text>
+          </View>
+        )}
+        
       </View>
 
       {hasLimit && (
@@ -79,15 +92,19 @@ export const Category = ({ item, expanded, toggleExpand, openAddModal, openCateg
 };
 
 const styles = StyleSheet.create({
-  card: {
+  cardContainer: {
     backgroundColor: '#22242B',
     borderRadius: 12,
     paddingHorizontal: 12,
     marginBottom: 6,
+    minHeight: 64,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  card: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    minHeight: 64, // wyższa karta, żeby nie było ściśnięte
   },
   cardLeft: {
     height: '100%',
@@ -107,6 +124,23 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginRight: 12,
     flexShrink: 1,
+  },
+  envelopeContainer: {
+    paddingLeft: 50,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    width: '100%',
+  },
+  envelopeText: {
+    color: colors.envelope,
+    fontWeight: '600',
+    fontSize: 12,
+  },
+  envelopeSum: {
+    color: colors.envelope,
+    fontWeight: '600',
+    fontSize: 12,
   },
   cardSum: {
     color: colors.white,
