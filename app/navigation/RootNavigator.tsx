@@ -7,6 +7,7 @@ import routes from './routes';
 import { EnvelopesHome } from '../screens/modals/EnvelopesHome';
 import { EnvelopeDetails } from '../screens/modals/EnvelopeDetails';
 import { EnvelopeEdit } from '../screens/modals/EnvelopeEdit';
+import { CategoriesStats } from '../screens/modals/CategoriesStats';
 
 export type RootStackParamList = {
   Main: undefined;
@@ -15,6 +16,7 @@ export type RootStackParamList = {
   EnvelopesHome: {month1: number, year: number} | undefined;
   EnvelopeDetails: { envelopeId: number; year: number; month1: number } | undefined;
   EnvelopeEdit: { envelopeId:number; initialName?:string; initialColor?:string } | undefined
+  CategoriesStats: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -69,6 +71,15 @@ export const RootNavigator = () => {
       <Stack.Screen
         name={routes.ENVELOPE_EDIT}
         component={EnvelopeEdit}
+        options={{
+          presentation: 'transparentModal',
+          contentStyle: { backgroundColor: 'transparent' },
+          animation: 'fade',
+        }}
+      />
+      <Stack.Screen
+        name={routes.CATEGORIES_STATS}
+        component={CategoriesStats}
         options={{
           presentation: 'transparentModal',
           contentStyle: { backgroundColor: 'transparent' },

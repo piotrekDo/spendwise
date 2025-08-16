@@ -1,5 +1,6 @@
 export default Object.freeze({
   HOME: 'home',
+  BUDGET: 'budget',
   ARCHIVE: 'archive',
   DEBUG: 'sqldebug',
   ACCOUNT: 'account',
@@ -10,4 +11,5 @@ export default Object.freeze({
   MODAL_ENVELOPES_HOME: 'EnvelopesHome',
   ENVELOPE_DETAILS: 'EnvelopeDetails',
   ENVELOPE_EDIT: 'EnvelopeEdit',
+  CATEGORIES_STATS: 'CategoriesStats'
 });
