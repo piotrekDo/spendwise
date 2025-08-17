@@ -1,10 +1,11 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import React, { useMemo } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { BarChart, PieChart } from 'react-native-gifted-charts';
 import { CatLite, monthLabels } from '../../components/home/CategoryYear';
 import colors from '../../config/colors';
 import { CategoryWithSubYearly } from '../../services/statService';
+import { ScrollView } from 'react-native-gesture-handler';
 
 interface Props {
   cats: CatLite[];
@@ -65,7 +66,7 @@ export const Header = ({
 
   return (
     <View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingVertical: 4 }}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingVertical: 5, marginTop: 20 }}>
         {cats.map(c => {
           const selected = c.id === catId;
           return (
@@ -75,7 +76,7 @@ export const Header = ({
               hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
               style={[styles.chip, selected && { backgroundColor: c.color + '22', transform: [{ translateY: -4 }] }]}
             >
-              <MaterialCommunityIcons name={c.icon as any} size={18} color={c.color} />
+              <MaterialCommunityIcons name={c.icon as any} size={20} color={c.color} />
             </TouchableOpacity>
           );
         })}
@@ -95,18 +96,25 @@ export const Header = ({
         ) : isCatEmpty ? (
           <Text style={styles.loading}>Brak danych dla kategorii</Text>
         ) : (
-          <BarChart
-            data={categoryYearData}
-            barWidth={16}
-            spacing={16}
-            noOfSections={4}
-            frontColor={yearlyCategory.color}
-            rulesColor='#2E2F36'
-            xAxisLabelTextStyle={{ color: '#9aa' }}
-            yAxisTextStyle={{ color: '#9aa' }}
-            yAxisColor='transparent'
-            xAxisColor='transparent'
-          />
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            directionalLockEnabled
+            nestedScrollEnabled
+          >
+            <BarChart
+              data={categoryYearData}
+              barWidth={16}
+              spacing={16}
+              noOfSections={4}
+              frontColor={yearlyCategory.color}
+              rulesColor='#2E2F36'
+              xAxisLabelTextStyle={{ color: '#9aa' }}
+              yAxisTextStyle={{ color: '#9aa' }}
+              yAxisColor='transparent'
+              xAxisColor='transparent'
+            />
+          </ScrollView>
         )}
       </View>
 

@@ -1,24 +1,29 @@
+// screens/modals/CategoriesStats.tsx
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useRoute } from '@react-navigation/native';
-import React, { useEffect, useMemo, useState } from 'react';
+import { BottomSheetBackdrop, BottomSheetFlatList, BottomSheetModal } from '@gorhom/bottom-sheet';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import Animated, { useAnimatedScrollHandler, useSharedValue } from 'react-native-reanimated';
 import { BarChart } from 'react-native-gifted-charts';
 import { Header } from '../../components/category_stats/Header';
 import { CatLite, monthLabels } from '../../components/home/CategoryYear';
-import SwipeToDismissModal from '../../components/SwipeToDismissModal';
+import colors from '../../config/colors';
 import { CategoryWithSubYearly, getCategoryStatsByYear } from '../../services/statService';
+import { ScrollView } from 'react-native-gesture-handler';
 
 type RouteParams = { cats: CatLite[]; selectedCategoryId: number };
 
 export const CategoriesStats = () => {
+  const navigation = useNavigation<any>();
   const route = useRoute();
   const { cats, selectedCategoryId } = route.params as RouteParams;
+
   const [catId, setCatId] = useState<number>(selectedCategoryId);
   const [yearlyCategory, setYearlyCategory] = useState<CategoryWithSubYearly | undefined>();
   const [focusedBarIdxCat, setFocusedBarIdxCat] = useState<number | null>(null);
   const year = 2025;
 
+  // --- dane ---
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -27,7 +32,9 @@ export const CategoriesStats = () => {
       setYearlyCategory(data);
       setFocusedBarIdxCat(null);
     })();
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, [catId, year]);
 
   const subRows = useMemo(() => {
@@ -40,28 +47,47 @@ export const CategoriesStats = () => {
     });
   }, [yearlyCategory]);
 
-  // (opcjonalnie) Możesz dalej trzymać scrollY do innych efektów, ale tutaj nie jest potrzebny do gestów.
-  const scrollY = useSharedValue(0);
-  const onScroll = useAnimatedScrollHandler({
-    onScroll: e => { scrollY.value = e.contentOffset.y; },
-  });
+  // --- BottomSheet Modal ---
+  const sheetRef = useRef<BottomSheetModal>(null);
+  const snapPoints = useMemo(() => ['60%', '92%'], []);
+
+  const handleDismiss = useCallback(() => {
+    // zamknij ekran po schowaniu bottom sheet
+    navigation.goBack();
+  }, [navigation]);
+
+  // otwórz bottom sheet po zamontowaniu ekranu
+  useEffect(() => {
+    const id = requestAnimationFrame(() => sheetRef.current?.present());
+    return () => cancelAnimationFrame(id);
+  }, []);
+
+  // Backdrop (kliknięcie zamyka)
+  const renderBackdrop = useCallback(
+    (props: any) => (
+      <BottomSheetBackdrop {...props} appearsOnIndex={0} disappearsOnIndex={-1} pressBehavior='close' opacity={0.5} />
+    ),
+    []
+  );
 
   return (
-    <SwipeToDismissModal>
-      <Animated.FlatList
-        contentContainerStyle={{ paddingBottom: 16 }}
-        onScroll={onScroll}
-        scrollEventThrottle={16}
-        // ⚙️ płynność
+    <BottomSheetModal
+      ref={sheetRef}
+      snapPoints={['92%']}
+      index={0}
+      enableOverDrag={false}
+      enablePanDownToClose
+      backdropComponent={renderBackdrop}
+      handleIndicatorStyle={{ backgroundColor: 'rgba(255,255,255,0.28)' }}
+      handleStyle={{ paddingVertical: 6 }}
+      backgroundStyle={{ backgroundColor: colors.background, borderTopLeftRadius: 16, borderTopRightRadius: 16 }}
+      onDismiss={handleDismiss}
+      keyboardBehavior='interactive'
+      keyboardBlurBehavior='restore'
+    >
+      <BottomSheetFlatList
+        contentContainerStyle={{ paddingBottom: 16, paddingHorizontal: 16 }}
         bounces
-        nestedScrollEnabled
-        decelerationRate="normal"
-        initialNumToRender={6}
-        windowSize={7}
-        maxToRenderPerBatch={10}
-        updateCellsBatchingPeriod={16}
-        removeClippedSubviews={false}
-
         data={subRows}
         keyExtractor={row => String(row.sub.subcategoryId)}
         ListHeaderComponent={
@@ -75,7 +101,7 @@ export const CategoriesStats = () => {
             setFocusedBarIdxCat={setFocusedBarIdxCat}
           />
         }
-        ListFooterComponent={<View style={{ height: 16 }} />}
+        ListFooterComponent={<View style={{ height: 12 }} />}
         ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
         renderItem={({ item }) => {
           const { sub, data, total, empty } = item;
@@ -89,29 +115,42 @@ export const CategoriesStats = () => {
                 <Text style={styles.subTotal}>{total.toFixed(2)} zł</Text>
               </View>
 
-              <View style={{ height: 180, justifyContent: 'center', alignItems: 'center' }}>
+              <View style={{ justifyContent: 'center', alignItems: 'center' }}>
                 {empty ? (
                   <Text style={styles.loading}>Brak danych</Text>
                 ) : (
-                  <BarChart
-                    data={data}
-                    barWidth={14}
-                    spacing={14}
-                    noOfSections={4}
-                    frontColor={sub.color}
-                    rulesColor="#2E2F36"
-                    xAxisLabelTextStyle={{ color: '#9aa' }}
-                    yAxisTextStyle={{ color: '#9aa' }}
-                    yAxisColor="transparent"
-                    xAxisColor="transparent"
-                  />
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    directionalLockEnabled
+                    nestedScrollEnabled
+                    simultaneousHandlers={sheetRef}
+                  >
+                    {/* szerokość > ekranu, żeby naprawdę było co przewijać */}
+                    <View style={{}}>
+                      <BarChart
+                        data={data}
+                        barWidth={15}
+                        spacing={15}
+                        noOfSections={4}
+                        frontColor={sub.color}
+                        rulesColor='#2E2F36'
+                        xAxisLabelTextStyle={{ color: '#9aa' }}
+                        yAxisTextStyle={{ color: '#9aa', fontSize: 10 }} // ⬅️ mniejsza czcionka
+                        yAxisLabelWidth={25} // ⬅️ węższa kolumna legendy
+                        yAxisTextNumberOfLines={1}
+                        yAxisColor='transparent'
+                        xAxisColor='transparent'
+                      />
+                    </View>
+                  </ScrollView>
                 )}
               </View>
             </View>
           );
         }}
       />
-    </SwipeToDismissModal>
+    </BottomSheetModal>
   );
 };
 
