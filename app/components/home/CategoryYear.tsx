@@ -11,9 +11,9 @@ import routes from '../../navigation/routes';
 
 type Props = { year: number };
 
-type CatLite = { id: number; name: string; color: string; icon: string };
+export type CatLite = { id: number; name: string; color: string; icon: string };
 
-const monthLabels = ['Sty','Lut','Mar','Kwi','Maj','Cze','Lip','Sie','Wrz','Paź','Lis','Gru'];
+export const monthLabels = ['Sty', 'Lut', 'Mar', 'Kwi', 'Maj', 'Cze', 'Lip', 'Sie', 'Wrz', 'Paź', 'Lis', 'Gru'];
 
 export const CategoryYear = ({ year }: Props) => {
   const navigation = useNavigation<any>();
@@ -24,17 +24,14 @@ export const CategoryYear = ({ year }: Props) => {
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // load categories once
   useEffect(() => {
     (async () => {
       const list = await getExpenseCategoriesLite();
       setCats(list);
       if (list.length && catId === null) setCatId(list[0].id);
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // load series on change
   useEffect(() => {
     if (!catId) return;
     (async () => {
@@ -52,13 +49,11 @@ export const CategoryYear = ({ year }: Props) => {
   const total = useMemo(() => series.reduce((a, r) => a + r.sum, 0), [series]);
   const avg = useMemo(() => (series.length ? total / series.length : 0), [series, total]);
 
-  // MAX: jak było
   const maxIdx = useMemo(
     () => (series.length ? series.reduce((mi, r, i, arr) => (r.sum > arr[mi].sum ? i : mi), 0) : -1),
     [series]
   );
 
-  // MIN ≠ 0: pierwszy najmniejszy dodatni; jeśli brak dodatnich -> -1 (n/d)
   const minNonZeroIdx = useMemo(() => {
     if (!series.length) return -1;
     let idx = -1;
@@ -78,27 +73,38 @@ export const CategoryYear = ({ year }: Props) => {
   const isEmpty = barData.every(b => b.value === 0);
   const active = cats.find(c => c.id === catId);
 
+  const navigateToStats = () => {
+    navigation.navigate(routes.CATEGORIES_STATS, {
+      cats: cats,
+      selectedCategoryId: catId,
+    });
+  };
+
   return (
     <View style={styles.card}>
-      <Pressable style={styles.cardHeader} onPress={() => navigation.navigate(routes.CATEGORIES_STATS, {
-        initialYear: year,
-        category: { id: cats[catId!].id, name: cats[catId!].name, color: cats[catId!].color, icon: cats[catId!].icon },
-        initialSeries: series,
-      })}>
+      <Pressable style={styles.cardHeader} onPress={navigateToStats}>
         <Text style={styles.cardTitle}>Rok {year} kategorie</Text>
         {!!active && <Text style={styles.cardSubtitle}>{active.name}</Text>}
       </Pressable>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingVertical: 4 }}>
-        {cats.map(c => {
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ paddingVertical: 4, paddingHorizontal: 8 }}
+      >
+        {cats.map((c, idx) => {
           const selected = c.id === catId;
           return (
             <TouchableOpacity
               key={c.id}
               onPress={() => setCatId(c.id)}
-              style={[styles.chip, { borderColor: c.color }, selected && { backgroundColor: c.color + '22' }]}
+              style={[
+                styles.chip,
+                { borderColor: c.color },
+                selected && { backgroundColor: c.color + '22' },
+              ]}
             >
-              <MaterialCommunityIcons name={c.icon as any} size={16} color={c.color} />
+              <MaterialCommunityIcons name={c.icon as any} size={20} color={c.color} />
             </TouchableOpacity>
           );
         })}
@@ -114,14 +120,14 @@ export const CategoryYear = ({ year }: Props) => {
           <BarChart
             data={barData}
             barWidth={16}
-            spacing={22}
+            spacing={16}
             noOfSections={4}
             frontColor={active?.color ?? '#90CAF9'}
-            rulesColor="#2E2F36"
+            rulesColor='#2E2F36'
             xAxisLabelTextStyle={{ color: '#9aa' }}
             yAxisTextStyle={{ color: '#9aa' }}
-            yAxisColor="transparent"
-            xAxisColor="transparent"
+            yAxisColor='transparent'
+            xAxisColor='transparent'
             renderTooltip={(item: any, index: number) => {
               if (index !== focusedIndex) return null;
               return (
@@ -203,7 +209,7 @@ const styles = StyleSheet.create({
   summaryText: { color: colors.white, opacity: 0.85, fontSize: 12 },
   tooltip: {
     position: 'absolute',
-    bottom: 24,
+    top: 0,
     paddingVertical: 4,
     paddingHorizontal: 8,
     backgroundColor: '#2A2C33',

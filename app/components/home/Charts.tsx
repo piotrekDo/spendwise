@@ -6,6 +6,9 @@ import colors from '../../config/colors';
 import { RADIUS } from '../../config/constants';
 import { getYearSummary, YearMonthRow } from '../../services/statService';
 
+const nf0 = new Intl.NumberFormat('pl-PL', { maximumFractionDigits: 0 });
+const nf2 = new Intl.NumberFormat('pl-PL', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+
 const LegendDot = ({ color, label }: { color: string; label: string }) => (
   <View style={{ flexDirection: 'row', alignItems: 'center' }}>
     <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: color, marginRight: 6 }} />
@@ -22,11 +25,18 @@ export const Charts = ({ year, month1 }: Props) => {
   const [yearData, setYearData] = useState<YearMonthRow[]>([]);
   const [loadingYear, setLoadingYear] = useState(false);
 
+  // Sticky focus
+  const [focusedLineIndex, setFocusedLineIndex] = useState<number | null>(null);
+  const [focusedBarIndex, setFocusedBarIndex] = useState<number | null>(null);
+
   const loadYear = async () => {
     setLoadingYear(true);
     try {
       const data = await getYearSummary(year);
-      setYearData(data);
+      setYearData(Array.isArray(data) ? data : []);
+      // po przeładowaniu roku czyścimy fokusy
+      setFocusedLineIndex(null);
+      setFocusedBarIndex(null);
     } finally {
       setLoadingYear(false);
     }
@@ -38,25 +48,31 @@ export const Charts = ({ year, month1 }: Props) => {
     }, [year, month1])
   );
 
-  // Focus (dla tooltipów)
-  const [focusedBarIndex, setFocusedBarIndex] = useState<number | null>(null);
-  // --- CHART DATA ---
   const monthLabels = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'];
 
   const lineIncome = useMemo(
-    () => yearData.map((r, i) => ({ value: Number(r.income) || 0, label: monthLabels[i] })),
+    () =>
+      yearData.map((r, i) => ({
+        value: Number(r?.income) || 0,
+        dataPointText: r.income.toString(),
+      })),
     [yearData]
   );
+
   const lineExpense = useMemo(
-    () => yearData.map((r, i) => ({ value: Number(r.expense) || 0, label: monthLabels[i] })),
+    () =>
+      yearData.map((r, i) => ({
+        value: Number(r?.expense) || 0,
+        dataPointText: r.expense.toString(),
+      })),
     [yearData]
   );
+
   const barSavings = useMemo(
     () =>
       yearData.map((r, i) => ({
-        value: Number(r.totalSavings) || 0,
-        label: monthLabels[i],
-        onPress: () => setFocusedBarIndex(i),
+        value: Number(r?.totalSavings) || 0,
+        dataPointText: r?.totalSavings.toString(),
       })),
     [yearData]
   );
@@ -67,26 +83,26 @@ export const Charts = ({ year, month1 }: Props) => {
   const isLineEmpty = lineIncome.every(d => d.value === 0) && lineExpense.every(d => d.value === 0);
   const isBarEmpty = barSavings.every(d => d.value === 0);
 
-  // Tooltip dla słupków
   const renderBarTooltip = (item: any, index: number) => {
     if (index !== focusedBarIndex) return null;
     return (
       <View
         style={{
           position: 'absolute',
-          bottom: item.value + 30,
-          paddingVertical: 4,
-          paddingHorizontal: 8,
-          backgroundColor: '#2A2C33',
-          borderRadius: 6,
+          bottom: (item?.value ?? 0) + 26,
+          paddingVertical: 6,
+          paddingHorizontal: 10,
+          backgroundColor: '#1f2229',
+          borderRadius: 8,
           borderWidth: StyleSheet.hairlineWidth,
-          borderColor: '#444',
+          borderColor: '#2e2f36',
         }}
       >
-        <Text style={{ color: '#fff', fontSize: 12 }}>{item.value.toFixed(2)} zł</Text>
+        <Text style={{ color: '#fff', fontSize: 12 }}>{nf2.format(item?.value ?? 0)} zł</Text>
       </View>
     );
   };
+
   return (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
@@ -95,70 +111,79 @@ export const Charts = ({ year, month1 }: Props) => {
       </View>
 
       {isLineEmpty ? (
-        <Text style={{ color: '#9aa', textAlign: 'center', paddingVertical: 12 }}>
-          Brak danych do wykresu liniowego
-        </Text>
+        <Text style={styles.empty}>Brak danych do wykresu liniowego</Text>
       ) : (
-        <LineChart
-          data={lineIncome}
-          data2={lineExpense}
-          thickness={2}
-          curved
-          isAnimated
-          noOfSections={4}
-          height={180}
-          adjustToWidth
-          initialSpacing={10}
-          spacing={22}
-          color1='#4CAF50' // przychody
-          color2='#E53935' // wydatki
-          rulesColor='#2E2F36'
-          showVerticalLines
-          verticalLinesColor='#2E2F36'
-          xAxisLabelTextStyle={{ color: '#9aa' }}
-          yAxisTextStyle={{ color: '#9aa' }}
-          yAxisColor='transparent'
-          xAxisColor='transparent'
-          maxValue={lineMaxValue}
-          formatYLabel={v => {
-            const n = Number(v);
-            return Number.isFinite(n) ? `${Math.round(n)}` : '';
-          }}
-          // 🔽 interakcja
-          focusEnabled
-          showStripOnFocus
-          stripColor='#3a3d46'
-          stripWidth={1}
-          showDataPointOnFocus
-          showTextOnFocus
-          dataPointsColor='#b0bec5'
-          dataPointsWidth={6}
-        />
+        <>
+          <LineChart
+            data={lineIncome}
+            data2={lineExpense}
+            // data3={barSavings}
+            // wygląd
+            thickness={2}
+            areaChart
+            startFillColor1='#4CAF50'
+            endFillColor1='#4CAF50'
+            textColor1='#4CAF50'
+            startFillColor2='#E53935'
+            endFillColor2='#E53935'
+            textColor2='#E53935'
+            startFillColor3='#FFC107'
+            endFillColor3='#FFC107'
+            textColor3='#FFC107'
+            textFontSize1={12}
+            textFontSize2={12}
+            textFontSize3={12}
+            startOpacity={0.12}
+            endOpacity={0.02}
+            color1='#4CAF50'
+            color2='#E53935'
+            // siatka/osy
+            height={200}
+            noOfSections={4}
+            maxValue={lineMaxValue}
+            rulesType='dashed'
+            dashWidth={3}
+            rulesColor='#2E2F36'
+            showVerticalLines
+            verticalLinesColor='#2E2F36'
+            yAxisColor='transparent'
+            xAxisColor='transparent'
+            xAxisLabelTextStyle={{ color: '#9aa' }}
+            yAxisTextStyle={{ color: '#9aa' }}
+            adjustToWidth
+            initialSpacing={12}
+            spacing={24}
+            formatYLabel={v => {
+              const n = Number(v);
+              return Number.isFinite(n) ? nf0.format(Math.round(n)) : '';
+            }}
+            // kropki pomocnicze (fokus i tak robimy sticky niżej)
+            focusEnabled
+            delayBeforeUnFocus={5000}
+            showTextOnFocus
+            dataPointsColor='#b0bec5'
+            dataPointsWidth={6}
+          />
+
+          {/* STICKY tooltip dla linii */}
+          {focusedLineIndex != null && (
+            <View style={styles.stickyTooltip}>
+              <Text style={styles.stickyTitle}>{monthLabels[focusedLineIndex]}</Text>
+              <Text style={[styles.stickyRow, { color: '#4CAF50' }]}>
+                Przychód: {nf2.format(lineIncome[focusedLineIndex]?.value ?? 0)} zł
+              </Text>
+              <Text style={[styles.stickyRow, { color: '#E53935' }]}>
+                Wydatek: {nf2.format(lineExpense[focusedLineIndex]?.value ?? 0)} zł
+              </Text>
+            </View>
+          )}
+        </>
       )}
 
       <View style={{ height: 12 }} />
 
-      {isBarEmpty ? (
-        <Text style={{ color: '#9aa', textAlign: 'center', paddingVertical: 12 }}>Brak danych o oszczędnościach</Text>
-      ) : (
-        <BarChart
-          data={barSavings}
-          barWidth={14}
-          spacing={22}
-          height={160}
-          noOfSections={4}
-          isAnimated
-          frontColor='#FFC107'
-          rulesColor='#2E2F36'
-          xAxisLabelTextStyle={{ color: '#9aa' }}
-          yAxisTextStyle={{ color: '#9aa' }}
-          yAxisColor='transparent'
-          xAxisColor='transparent'
-          renderTooltip={renderBarTooltip}
-        />
-      )}
-
-      <View style={{ flexDirection: 'row', gap: 16, marginTop: 8 }}>
+      {/* Legenda */}
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between',  marginTop: 8 }}>
         <LegendDot color='#4CAF50' label='Przychody' />
         <LegendDot color='#E53935' label='Wydatki' />
         <LegendDot color='#FFC107' label='Oszczędności łącznie' />
@@ -178,4 +203,17 @@ const styles = StyleSheet.create({
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 },
   cardTitle: { color: colors.white, fontSize: 16, fontWeight: '700' },
   cardSubtitle: { color: colors.white, opacity: 0.6, fontSize: 12 },
+  empty: { color: '#9aa', textAlign: 'center', paddingVertical: 12 },
+  stickyTooltip: {
+    alignSelf: 'center',
+    marginTop: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: '#1f2229',
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#2e2f36',
+  },
+  stickyTitle: { color: '#c7c9d1', fontWeight: '600', textAlign: 'center' },
+  stickyRow: { marginTop: 4 },
 });

@@ -21,73 +21,53 @@ export const SQLiteDebug: React.FC = () => {
     loadDb();
   }, []);
 
-const runQuery = async (customQuery?: string) => {
-  const finalQuery = customQuery || query;
+  const runQuery = async (customQuery?: string) => {
+    const finalQuery = customQuery || query;
 
-  try {
-    const res = await db!.getAllAsync(finalQuery);
+    try {
+      const res = await db!.getAllAsync(finalQuery);
+      setResults(res as Row[]);
+      setError(null);
+      // setQuery(finalQuery)
+    } catch (err: any) {
+      setError(err.message || 'Błąd zapytania');
+      setResults([]);
+    }
+  };
+
+  const DEBUG = `
+    SELECT 
+      s.id   AS subcategoryId,
+      s.name AS name,
+      s.color AS color,
+      ai.name AS icon,
+      CAST(substr(e.date,6,2) AS INTEGER) AS month,
+      SUM(e.amount) AS sum
+    FROM entries e
+    JOIN subcategories s ON s.id = e.subcategoryId
+    JOIN categories c ON c.id = s.categoryId
+    LEFT JOIN app_icons ai ON ai.id = s.iconId
+    WHERE c.id = 7
+          AND c.positive = 0
+      AND substr(e.date,1,4) = "2025"
+      AND (e.depositEnvelopeId IS NULL)
+      AND e.financedEnvelopeId IS NULL
+    GROUP BY s.id, s.name, s.color, ai.name, month
+    ORDER BY s.name, month;
+    `;
+
+  // const DEBUG = `
+  // SELECT c.id, c.name, c.color, i.name as icon
+  //   FROM categories c 
+  //   JOIN app_icons i ON c.iconId = i.id
+  //   WHERE c.id = 7
+  // `
+
+
+  const runDebugQuery = async () => {
+    const res = await db!.getAllAsync(DEBUG);
     setResults(res as Row[]);
-    setError(null);
-    // setQuery(finalQuery)
-  } catch (err: any) {
-    setError(err.message || 'Błąd zapytania');
-    setResults([]);
-  }
-};
-
-const LIMIT_CATEGORY_QUERY = `WITH per_cat AS (
-  SELECT
-    c.id,
-    c.name,
-    ai.name AS icon,
-    c.color,
-    (
-      SELECT cl."limit"
-      FROM category_limits cl
-      WHERE cl.categoryId = c.id
-        AND (
-          (cl.year = ? AND cl.month = ?) OR      -- dokładny rok+miesiąc
-          (cl.year IS NULL AND cl.month = ?) OR  -- powtarzalny co rok w danym miesiącu
-          (cl.year = ? AND cl.month IS NULL) OR  -- roczny
-          (cl.year IS NULL AND cl.month IS NULL) -- globalny
-        )
-      ORDER BY
-        CASE
-          WHEN cl.year = ? AND cl.month = ? THEN 1
-          WHEN cl.year IS NULL AND cl.month = ? THEN 2
-          WHEN cl.year = ? AND cl.month IS NULL THEN 3
-          WHEN cl.year IS NULL AND cl.month IS NULL THEN 4
-          ELSE 99
-        END,
-        cl.id
-      LIMIT 1
-    ) AS "limit",
-    COALESCE((
-      SELECT SUM(e.amount)
-      FROM entries e
-      JOIN subcategories s ON s.id = e.subcategoryId
-      JOIN categories cc ON cc.id = s.categoryId
-      WHERE s.categoryId = c.id
-        AND cc.positive = 0
-        AND e.isArchived = 0
-        AND e.depositEnvelopeId IS NULL
-        AND e.financedEnvelopeId IS NULL
-        AND e.date BETWEEN ? AND ?
-    ), 0) AS used
-  FROM categories c
-  LEFT JOIN app_icons ai ON ai.id = c.iconId
-)
-SELECT id, name, icon, color, "limit", used
-FROM per_cat
-WHERE "limit" IS NOT NULL
-ORDER BY (CASE WHEN "limit" = 0 THEN 1e9 ELSE used * 1.0 / "limit" END) DESC, name;
-`
-
-const runDebugQuery = async() => {
-const res = await db!.getAllAsync(LIMIT_CATEGORY_QUERY, [ 2025, 8, 8, 2025,   2025, 8, 8, 2025,   '2025-08-01', '2025-08-30' ]);
-setResults(res as Row[]);
-
-}
+  };
 
   return (
     <View style={styles.container}>

@@ -83,7 +83,8 @@ export const RootNavigator = () => {
         options={{
           presentation: 'transparentModal',
           contentStyle: { backgroundColor: 'transparent' },
-          animation: 'fade',
+          animation: 'slide_from_bottom',
+          animationDuration: 25
         }}
       />
     </Stack.Navigator>
