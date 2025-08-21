@@ -122,6 +122,13 @@ export const initDatabase = async () => {
     CREATE INDEX IF NOT EXISTS idx_entries_dep_env       ON entries(depositEnvelopeId);
     CREATE INDEX IF NOT EXISTS idx_entries_fin_env       ON entries(financedEnvelopeId);
 
+  
+    CREATE INDEX IF NOT EXISTS idx_entries_active_sub_date
+    ON entries(subcategoryId, date)
+    WHERE isArchived = 0 AND financedEnvelopeId IS NULL;
+
+    CREATE INDEX IF NOT EXISTS idx_subcategories_category ON subcategories(categoryId);
+
     ------------------------------
     -- Koperty
     ------------------------------

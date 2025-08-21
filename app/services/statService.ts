@@ -2,6 +2,8 @@ import { ENVELOPE_FUND_SUBCAT_ID } from '../config/constants';
 import { getDb } from '../database/db';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
+const EMPTY_12 = () => Array(12).fill(0);
+
 export type LimitItem = {
   id: number;
   name: string;
@@ -53,52 +55,212 @@ export type SubCatYearly = {
   sumsByMonth: number[];
 }
 
-const categoryQuery = `
-  SELECT c.id, c.name, c.color, ai.name AS icon
-  FROM categories c
-  LEFT JOIN app_icons ai ON ai.id = c.iconId
-  WHERE c.id = ?
-`;
+export type YearBucket = {
+  year: number;
+  sumsByMonth: number[];           // 12 elementów
+  subcategories?: SubCatYearly[];  // opcjonalnie dla danego roku
+};
 
-// 2) Sumy miesięczne dla CAŁEJ kategorii (tylko wydatki -> positive=0; usuń warunek jeśli niepotrzebny)
-const categorySumsQuery = `
-  SELECT CAST(substr(e.date,6,2) AS INTEGER) AS month,
-         SUM(e.amount) AS sum
-  FROM entries e
-  JOIN subcategories s ON s.id = e.subcategoryId
-  JOIN categories c ON c.id = s.categoryId
-  WHERE c.id = ?
-    AND c.positive = 0
-    AND substr(e.date,1,4) = ?
-    AND e.isArchived = 0
-    AND e.depositEnvelopeId IS NULL
-    AND e.financedEnvelopeId IS NULL
-  GROUP BY month
-  ORDER BY month
-`;
+export type CategoryWithSubMulti = {
+  id: number;
+  name: string;
+  color: string;
+  icon: string;
+  years: YearBucket[];   // posortowane malejąco (2025, 2024, …)
+};
 
-// 3) Sumy miesięczne per SUBKATEGORIA (LEFT JOIN, żeby dostać też puste)
-const subcatsQuery = `
-  SELECT s.id AS subcategoryId,
-         s.name,
-         s.color,
-         ai.name AS icon,
-         CAST(substr(e.date,6,2) AS INTEGER) AS month,
-         SUM(e.amount) AS sum
-  FROM subcategories s
-  JOIN categories c ON c.id = s.categoryId
-  LEFT JOIN app_icons ai ON ai.id = s.iconId
-  LEFT JOIN entries e
-    ON e.subcategoryId = s.id
-   AND substr(e.date,1,4) = ?
-   AND e.isArchived = 0
-   AND e.depositEnvelopeId IS NULL
-   AND e.financedEnvelopeId IS NULL
-  WHERE c.id = ?
-    AND c.positive = 0
-  GROUP BY s.id, s.name, s.color, ai.name, month
-  ORDER BY s.name, month
-`;
+export type SubcategoryMulti = {
+  subcategoryId: number;
+  name: string;
+  color: string;
+  icon: keyof typeof MaterialCommunityIcons.glyphMap;
+  years: { year: number; sumsByMonth: number[] }[]; // 12 elem. w każdym
+};
+
+
+ export function groupBySubcategory(category: CategoryWithSubMulti): SubcategoryMulti[] {
+    const yearOrder = category.years.map(y => y.year); // np. [2025, 2024, ...]
+    const bySub = new Map<number, SubcategoryMulti>();
+
+    // Zbierz wszystkie suby z definicji (z każdego roku), żeby mieć pełny zestaw
+    for (const y of category.years) {
+      const subs = y.subcategories ?? [];
+      for (const s of subs) {
+        if (!bySub.has(s.subcategoryId)) {
+          bySub.set(s.subcategoryId, {
+            subcategoryId: s.subcategoryId,
+            name: s.name,
+            color: s.color,
+            icon: s.icon,
+            years: [], // uzupełnimy niżej w pętli po yearOrder
+          });
+        } else {
+          // ewentualna aktualizacja nazwy/koloru gdyby zmieniły się między latami
+          const ref = bySub.get(s.subcategoryId)!;
+          ref.name = s.name;
+          ref.color = s.color;
+          ref.icon = s.icon;
+        }
+      }
+    }
+
+    // Jeżeli w jakimś roku nie było subów (np. all zero), bySub może być puste.
+    // W takim przypadku nic nie zrobimy — ale u Ciebie allYears już daje pełny zestaw subów.
+
+    // Dla każdego suba uzupełnij lata w zadanej kolejności
+    for (const sub of bySub.values()) {
+      for (const year of yearOrder) {
+        // spróbuj znaleźć sumsByMonth dla (sub, year)
+        const yBucket = category.years.find(y => y.year === year);
+        const match = yBucket?.subcategories?.find(s => s.subcategoryId === sub.subcategoryId);
+        sub.years.push({
+          year,
+          sumsByMonth: match ? match.sumsByMonth.slice() : EMPTY_12(),
+        });
+      }
+    }
+
+    // posortuj suby po nazwie (opcjonalnie)
+    return Array.from(bySub.values())
+    // .sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+export const getCategoryStatsLastNYears = async (
+  catId: number,
+  untilYear: number,
+  n = 5,
+  withSubBreakdown: 'none' | 'allYears' = 'none'
+): Promise<CategoryWithSubMulti> => {
+  const db = getDb();
+  const startYear = untilYear - (n - 1);
+  const start = toISO2(startYear, 1, 1);
+  const end   = toISO2(untilYear, 12, 31);
+
+  // --- meta kategorii
+  const category = await db.getFirstAsync(
+    `SELECT c.id, c.name, c.color, ai.name AS icon
+       FROM categories c
+       LEFT JOIN app_icons ai ON ai.id = c.iconId
+      WHERE c.id = ?`,
+    [catId]
+  );
+  if (!category) throw new Error(`Category ${catId} not found`);
+
+  // --- sumy kategorii (bez depozytów do kopert i bez finansowanych)
+  const rows = await db.getAllAsync(
+    `
+    SELECT 
+      CAST(strftime('%Y', e.date) AS INTEGER) AS y,
+      CAST(strftime('%m', e.date) AS INTEGER) AS m,
+      SUM(e.amount) AS sum
+    FROM entries e
+    JOIN subcategories s ON s.id = e.subcategoryId
+    WHERE s.categoryId = ?
+      AND e.isArchived = 0
+      AND e.financedEnvelopeId IS NULL
+      AND e.date BETWEEN ? AND ?
+    GROUP BY y, m
+    `,
+    [catId, start, end]
+  ) as Array<{ y:number; m:number; sum:number }>;
+
+  // --- wiadra po 12 miesięcy na każdy rok
+  const byYear = new Map<number, number[]>();
+  for (let y = startYear; y <= untilYear; y++) byYear.set(y, Array(12).fill(0));
+
+  for (const r of rows) {
+    if (r.y >= startYear && r.y <= untilYear && r.m >= 1 && r.m <= 12) {
+      const arr = byYear.get(r.y)!;
+      arr[r.m - 1] = Number(r.sum) || 0;
+    }
+  }
+
+  const years: YearBucket[] = Array.from(byYear.entries())
+    .sort((a,b) => b[0] - a[0]) // malejąco: 2025, 2024, …
+    .map(([year, sumsByMonth]) => ({ year, sumsByMonth }));
+
+  const model: CategoryWithSubMulti = {
+    id: category.id,
+    name: category.name,
+    color: category.color,
+    icon: category.icon ?? 'dots-horizontal-circle-outline',
+    years,
+  };
+
+  // --- opcjonalne rozbicie na subkategorie
+  if (withSubBreakdown === 'allYears') {
+    // 1) pełna lista subkategorii tej kategorii
+    const allSubs = await db.getAllAsync(
+      `
+      SELECT s.id AS subcategoryId, s.name, s.color, ai.name AS icon
+      FROM subcategories s
+      LEFT JOIN app_icons ai ON ai.id = s.iconId
+      WHERE s.categoryId = ?
+      ORDER BY s.name
+      `,
+      [catId]
+    ) as Array<{ subcategoryId:number; name:string; color:string; icon:string|null }>;
+
+    // 2) sumy rzeczywiste z entries
+    const subs = await db.getAllAsync(
+      `
+      SELECT 
+        s.id AS subcategoryId, s.name, s.color, ai.name AS icon,
+        CAST(strftime('%Y', e.date) AS INTEGER) AS y,
+        CAST(strftime('%m', e.date) AS INTEGER) AS m,
+        SUM(e.amount) AS sum
+      FROM entries e
+      JOIN subcategories s ON s.id = e.subcategoryId
+      LEFT JOIN app_icons ai ON ai.id = s.iconId
+      WHERE s.categoryId = ?
+        AND e.isArchived = 0
+        AND e.financedEnvelopeId IS NULL
+        AND e.date BETWEEN ? AND ?
+      GROUP BY s.id, y, m
+      `,
+      [catId, start, end]
+    ) as Array<{
+      subcategoryId:number; name:string; color:string; icon:string|null;
+      y:number; m:number; sum:number
+    }>;
+
+    // 3) y -> (subId -> SubCatYearly) zainicjalizowane zerami
+    const subsByYear = new Map<number, Map<number, SubCatYearly>>();
+    for (let y = startYear; y <= untilYear; y++) {
+      const mapForYear = new Map<number, SubCatYearly>();
+      for (const s of allSubs) {
+        mapForYear.set(s.subcategoryId, {
+          subcategoryId: s.subcategoryId,
+          name: s.name,
+          color: s.color,
+          icon: (s.icon ?? 'dots-horizontal-circle-outline') as any,
+          sumsByMonth: Array(12).fill(0),
+        });
+      }
+      subsByYear.set(y, mapForYear);
+    }
+
+    // 4) nadpisanie realnymi sumami
+    for (const r of subs) {
+      const { y, m, subcategoryId } = r;
+      if (y < startYear || y > untilYear || m < 1 || m > 12) continue;
+      const mapForYear = subsByYear.get(y)!;
+      const ref = mapForYear.get(subcategoryId);
+      if (ref) {
+        ref.sumsByMonth[m - 1] = Number(r.sum) || 0;
+      }
+    }
+
+    // 5) podczep subcategories do YearBucketów
+    for (const yBucket of model.years) {
+      const m = subsByYear.get(yBucket.year)!;
+      yBucket.subcategories = Array.from(m.values()).sort((a, b) => a.name.localeCompare(b.name));
+    }
+  }
+
+  return model;
+};
+
 
 export const getCategoryStatsByYear = async (catId: number, year: number): Promise<CategoryWithSubYearly> => {
   const db = getDb();
@@ -149,11 +311,6 @@ export const getCategoryStatsByYear = async (catId: number, year: number): Promi
     }
   }
 
-  // Jeśli chcesz mieć subcategory bez żadnych wpisów w danym roku:
-  // dołóż je z tabeli subcategories:
-  // (tu już mamy LEFT JOIN na entries, więc przy braku wpisów i tak dostaniesz wiersz z month=NULL.
-  // sumsByMonth zostało zainicjalizowane zerami, więc jest OK.)
-
   const model: CategoryWithSubYearly = {
     id: category.id,
     name: category.name,
@@ -188,7 +345,6 @@ export const getCategoryWithSubsYear = async (
     LEFT JOIN categories c ON c.id = s.categoryId
     WHERE c.id = ?
       AND c.positive = 0
-      AND (e.depositEnvelopeId IS NULL)
       ${finFilter}
     GROUP BY months.m
     ORDER BY months.m;
@@ -214,7 +370,6 @@ export const getCategoryWithSubsYear = async (
     WHERE c.id = ?
       AND c.positive = 0
       AND substr(e.date,1,4) = ?
-      AND (e.depositEnvelopeId IS NULL)
       ${finFilter}
     GROUP BY s.id, s.name, s.color, ai.name, month
     ORDER BY s.name, month;
@@ -337,6 +492,9 @@ const mapToYearNow = (r: any): YearMonthRow => {
 const toISO = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
+const toISO2 = (y:number,m:number,d:number) =>
+  `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+
 const monthRangeISO = (year: number, month0: number) => {
   const start = new Date(year, month0, 1);
   const end = new Date(year, month0 + 1, 0);
@@ -363,7 +521,6 @@ const GET_CATEGORY_YEAR_SERIES = `
       WHERE c.id = ?
         AND c.positive = 0
         AND e.isArchived = 0
-        AND e.depositEnvelopeId IS NULL
         AND e.financedEnvelopeId IS NULL
         AND strftime('%Y', e.date) = ?
       GROUP BY m
@@ -412,7 +569,6 @@ const MONTH_LIMITS_QUERY = `
             WHERE s.categoryId = c.id
               AND cc.positive = 0
               AND e.isArchived = 0
-              AND e.depositEnvelopeId IS NULL
               AND e.financedEnvelopeId IS NULL
               AND e.date BETWEEN ? AND ?
           ), 0) AS used
@@ -446,3 +602,48 @@ const GET_YEAR_SUMMARY_QUERY = `WITH months(n) AS (
     LEFT JOIN dep d ON d.m = m.n
     ORDER BY m.n
     `;
+
+    const categoryQuery = `
+  SELECT c.id, c.name, c.color, ai.name AS icon
+  FROM categories c
+  LEFT JOIN app_icons ai ON ai.id = c.iconId
+  WHERE c.id = ?
+`;
+
+// 2) Sumy miesięczne dla CAŁEJ kategorii (tylko wydatki -> positive=0; usuń warunek jeśli niepotrzebny)
+const categorySumsQuery = `
+  SELECT CAST(substr(e.date,6,2) AS INTEGER) AS month,
+         SUM(e.amount) AS sum
+  FROM entries e
+  JOIN subcategories s ON s.id = e.subcategoryId
+  JOIN categories c ON c.id = s.categoryId
+  WHERE c.id = ?
+    AND c.positive = 0
+    AND substr(e.date,1,4) = ?
+    AND e.isArchived = 0
+    AND e.financedEnvelopeId IS NULL
+  GROUP BY month
+  ORDER BY month
+`;
+
+// 3) Sumy miesięczne per SUBKATEGORIA (LEFT JOIN, żeby dostać też puste)
+const subcatsQuery = `
+  SELECT s.id AS subcategoryId,
+         s.name,
+         s.color,
+         ai.name AS icon,
+         CAST(substr(e.date,6,2) AS INTEGER) AS month,
+         SUM(e.amount) AS sum
+  FROM subcategories s
+  JOIN categories c ON c.id = s.categoryId
+  LEFT JOIN app_icons ai ON ai.id = s.iconId
+  LEFT JOIN entries e
+    ON e.subcategoryId = s.id
+   AND substr(e.date,1,4) = ?
+   AND e.isArchived = 0
+   AND e.financedEnvelopeId IS NULL
+  WHERE c.id = ?
+    AND c.positive = 0
+  GROUP BY s.id, s.name, s.color, ai.name, month
+  ORDER BY s.name, month
+`;

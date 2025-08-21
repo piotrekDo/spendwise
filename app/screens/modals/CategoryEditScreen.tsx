@@ -18,11 +18,11 @@ import { AppIcon, getIconNames } from '../../services/iconsService';
 import { addNewCategory, updateCategory } from '../../services/categoriesService';
 import type { DisplayCategory } from '../../model/Spendings';
 import { deleteCategoryLimit, getCategoryLimits, upsertCategoryLimit } from '../../services/limitService';
+import { presetColors } from '../../config/constants';
 
 type RouteParams = { cat?: DisplayCategory };
 type LimitScope = 'global' | 'year' | 'month';
 
-const presetColors = ['#FF5722', '#4CAF50', '#2196F3', '#FFC107', '#9C27B0', '#00BCD4', '#795548', '#607D8B'];
 
 type LimitRow = { id: number; categoryId: number; year: number | null; month: number | null; limit: number };
 

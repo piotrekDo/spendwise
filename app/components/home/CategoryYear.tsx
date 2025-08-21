@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import colors from '../../config/colors';
-import { RADIUS } from '../../config/constants';
+import { monthLabels, RADIUS } from '../../config/constants';
 import { BarChart } from 'react-native-gifted-charts';
 import { getExpenseCategoriesLite, getCategoryYearSeries, CatMonthRow } from '../../services/statService';
 import { useNavigation } from '@react-navigation/native';
@@ -13,7 +13,6 @@ type Props = { year: number };
 
 export type CatLite = { id: number; name: string; color: string; icon: string };
 
-export const monthLabels = ['Sty', 'Lut', 'Mar', 'Kwi', 'Maj', 'Cze', 'Lip', 'Sie', 'Wrz', 'Paź', 'Lis', 'Gru'];
 
 export const CategoryYear = ({ year }: Props) => {
   const navigation = useNavigation<any>();

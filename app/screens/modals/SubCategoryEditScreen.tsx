@@ -16,13 +16,13 @@ import colors from '../../config/colors';
 import { AppIcon, getIconNames } from '../../services/iconsService';
 import { addNewSubcategory, updateSubcategory } from '../../services/categoriesService';
 import type { DisplaySubcategory } from '../../model/Spendings';
+import { presetColors } from '../../config/constants';
 
 type RouteParams = {
   sub?: DisplaySubcategory;
   expandedCategory: number;
 };
 
-const presetColors = ['#FF5722', '#4CAF50', '#2196F3', '#FFC107', '#9C27B0', '#00BCD4', '#795548', '#607D8B'];
 
 export const SubCategoryEditScreen = () => {
   const navigation = useNavigation();

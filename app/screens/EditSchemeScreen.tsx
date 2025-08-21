@@ -26,32 +26,28 @@ export const EditSchemeScreen = () => {
   const { expandedCategory, setExpandedCategory } = useModalState();
   const navigation = useNavigation<Nav>();
 
-  // 🆕 Modal do usuwania kategorii
   const [deleteCategoryId, setDeleteCategoryId] = useState<number | null>(null);
   const isDeleteCategoryModalVisible = deleteCategoryId !== null;
 
-  // 🆕 Modal do usuwania podkategorii
   const [deleteSubId, setDeleteSubId] = useState<number | null>(null);
   const isDeleteSubModalVisible = deleteSubId !== null;
 
     const getCurrentYearMonth = () => {
     const now = new Date();
-    const d = new Date(now.getFullYear(), now.getMonth()); // +offset jeśli potrzebny
+    const d = new Date(now.getFullYear(), now.getMonth());
     return { year: d.getFullYear(), month: d.getMonth() + 1 };
   };
 
-  // jedno źródło prawdy do pobierania danych
   const refresh = useCallback(async (y?: number, m?: number) => {
     const { year, month } = y && m ? { year: y, month: m } : getCurrentYearMonth();
     const data = await getCategorySkeletonForSelectedmonth(year, month);
     setSkeleton(data);
   }, []);
 
-  // odświeżaj ZA KAŻDYM razem gdy ekran wraca na wierzch
   useFocusEffect(
     useCallback(() => {
-      void refresh(); // bierze bieżący rok/miesiąc
-      return () => {}; // cleanup opcjonalnie
+      void refresh(); 
+      return () => {}; 
     }, [refresh])
   );
 
