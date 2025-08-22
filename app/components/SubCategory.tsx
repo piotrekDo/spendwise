@@ -19,7 +19,7 @@ export const SubCategory = ({ sub, openAddModal }: Props) => {
           <Text style={styles.subName}>{sub.name}</Text>
         </View>
         <View style={styles.subRight}>
-          <Text style={styles.subSum}>{sub.sum} zł</Text>
+          <Text style={styles.subSum}>{sub.sum.toFixed(2)} zł</Text>
           <TouchableOpacity
             disabled={sub.id === ENVELOPE_FUND_SUBCAT_ID}
             onPress={() => {
@@ -42,7 +42,7 @@ export const SubCategory = ({ sub, openAddModal }: Props) => {
             <Text style={[styles.subName, {fontSize: 12, color: colors.envelope}]}>{sub.name}</Text>
           </View>
           <View style={[styles.subRight, { paddingRight: 26 }]}>
-            <Text style={[styles.subSum, {fontSize: 12, color: colors.envelope}]}>{sub.envelopesSum} zł</Text>
+            <Text style={[styles.subSum, {fontSize: 12, color: colors.envelope}]}>{sub.envelopesSum.toFixed(2)} zł</Text>
           </View>
         </View>
       )}

@@ -1,5 +1,6 @@
 import * as SQLite from 'expo-sqlite';
 import { ENVELOPE_FUND_SUBCAT_ID, OTHER_INCOME_SUBCAT_ID, OTHER_EXPENSES_SUBCAT_ID } from '../config/constants';
+import colors from '../config/colors';
 
 let db = null;
 
@@ -280,13 +281,13 @@ export const insertInitialData = async () => {
     `INSERT INTO subcategories (id, name, iconId, color, categoryId, isDefault) VALUES (${OTHER_INCOME_SUBCAT_ID}, 'Pozostałe dochody', 14, '#9E9E9E', 1, 1)`
   );
   await db.runAsync(
-    `INSERT INTO subcategories (id, name, iconId, color, categoryId, isDefault) VALUES (${ENVELOPE_FUND_SUBCAT_ID}, 'Zasilenia kopert', 56, '#9E9E9E', 2, 1)`
+    `INSERT INTO subcategories (id, name, iconId, color, categoryId, isDefault) VALUES (${ENVELOPE_FUND_SUBCAT_ID}, 'Zasilenia kopert', 56, '#00BCD4', 2, 1)`
   );
   await db.runAsync(
-    `INSERT INTO subcategories (id, name, iconId, color, categoryId, isDefault) VALUES (${OTHER_EXPENSES_SUBCAT_ID}, 'Inne zakupy', 54, '#9E9E9E', 2, 1)`
+    `INSERT INTO subcategories (id, name, iconId, color, categoryId, isDefault) VALUES (${OTHER_EXPENSES_SUBCAT_ID}, 'Inne zakupy', 54, '#607D8B', 2, 1)`
   );
   await db.runAsync(
-    `INSERT INTO subcategories (id, name, iconId, color, categoryId, isDefault) VALUES (4, 'Niespodziewane wydatki', 55, '#9E9E9E', 2, 1)`
+    `INSERT INTO subcategories (id, name, iconId, color, categoryId, isDefault) VALUES (4, 'Niespodziewane wydatki', 55, '#FF9F1C', 2, 1)`
   );
 
   const preset_categories = [
@@ -311,51 +312,51 @@ export const insertInitialData = async () => {
   }
 
   const preset_subcategories = [
-    { id: 5, name: 'Wynagrodzenie', iconId: 13, categoryId: 1 },
-    { id: 6, name: 'Czynsz', iconId: 15, categoryId: 3 },
-    { id: 7, name: 'Prąd', iconId: 16, categoryId: 3 },
-    { id: 8, name: 'Gaz', iconId: 17, categoryId: 3 },
-    { id: 9, name: 'Woda', iconId: 18, categoryId: 3 },
-    { id: 10, name: 'Telefon', iconId: 19, categoryId: 3 },
-    { id: 11, name: 'Internet', iconId: 20, categoryId: 3 },
-    { id: 12, name: 'Kredyt', iconId: 21, categoryId: 3 },
-    { id: 13, name: 'Żywność', iconId: 22, categoryId: 4 },
-    { id: 14, name: 'Przekąski', iconId: 23, categoryId: 4 },
-    { id: 15, name: 'Glovo', iconId: 24, categoryId: 5 },
-    { id: 16, name: 'Pyszne', iconId: 25, categoryId: 5 },
-    { id: 17, name: 'Restauracja', iconId: 26, categoryId: 5 },
-    { id: 18, name: 'Kino', iconId: 27, categoryId: 6 },
-    { id: 19, name: 'Gry', iconId: 5, categoryId: 6 },
-    { id: 20, name: 'Gry planszowe', iconId: 28, categoryId: 6 },
-    { id: 21, name: 'Koncerty', iconId: 29, categoryId: 6 },
-    { id: 22, name: 'Subskrypcje', iconId: 30, categoryId: 6 },
-    { id: 23, name: 'Sklep', iconId: 3, categoryId: 7 },
-    { id: 24, name: 'Na mieście', iconId: 31, categoryId: 7 },
-    { id: 25, name: 'Środki czystości', iconId: 32, categoryId: 8 },
-    { id: 26, name: 'Meble', iconId: 33, categoryId: 8 },
-    { id: 27, name: 'Dekoracje', iconId: 34, categoryId: 8 },
-    { id: 28, name: 'Sprzęty domowe', iconId: 35, categoryId: 8 },
-    { id: 29, name: 'Paliwo moto', iconId: 24, categoryId: 9 },
-    { id: 30, name: 'Paliwo auto', iconId: 36, categoryId: 9 },
-    { id: 31, name: 'Naprawa moto', iconId: 37, categoryId: 9 },
-    { id: 32, name: 'Naprawa auto', iconId: 38, categoryId: 9 },
-    { id: 33, name: 'Ubezpieczenie moto', iconId: 39, categoryId: 9 },
-    { id: 34, name: 'Ubezpieczenie auto', iconId: 40, categoryId: 9 },
-    { id: 35, name: 'Taxi', iconId: 41, categoryId: 9 },
-    { id: 36, name: 'Bilety', iconId: 42, categoryId: 9 },
-    { id: 37, name: 'Leki', iconId: 43, categoryId: 10 },
-    { id: 38, name: 'Lekarz', iconId: 44, categoryId: 10 },
-    { id: 39, name: 'Kosmetyki', iconId: 45, categoryId: 10 },
-    { id: 40, name: 'Fryzjer', iconId: 46, categoryId: 10 },
-    { id: 41, name: 'Siłownia', iconId: 47, categoryId: 10 },
-    { id: 42, name: 'Ubrania', iconId: 10, categoryId: 11 },
-    { id: 43, name: 'Obuwie', iconId: 48, categoryId: 11 },
-    { id: 44, name: 'Akcesoria', iconId: 49, categoryId: 11 },
-    { id: 45, name: 'Książki', iconId: 50, categoryId: 12 },
-    { id: 46, name: 'Kurs online', iconId: 51, categoryId: 12 },
-    { id: 47, name: 'Szkolenie', iconId: 52, categoryId: 12 },
-    { id: 48, name: 'Materiały edukacyjne', iconId: 53, categoryId: 12 },
-    { id: 49, name: 'Subskrypcje', iconId: 30, categoryId: 12 },
+    { id: 5, name: 'Wynagrodzenie', iconId: 13, categoryId: 1, color: '#4CAF50' },
+    { id: 6, name: 'Czynsz', iconId: 15, categoryId: 3, color: '#F4A261' },
+    { id: 7, name: 'Prąd', iconId: 16, categoryId: 3, color: '#9B5DE5'},
+    { id: 8, name: 'Gaz', iconId: 17, categoryId: 3, color: '#FFC107' },
+    { id: 9, name: 'Woda', iconId: 18, categoryId: 3, color: '#2196F3' },
+    { id: 10, name: 'Telefon', iconId: 19, categoryId: 3, color: '#607D8B' },
+    { id: 11, name: 'Internet', iconId: 20, categoryId: 3, color: '#2EC4B6' },
+    { id: 12, name: 'Kredyt', iconId: 21, categoryId: 3, color: '#795548' },
+    { id: 13, name: 'Żywność', iconId: 22, categoryId: 4, color: '#4CAF50' },
+    { id: 14, name: 'Przekąski', iconId: 23, categoryId: 4, color: '#FF5722' },
+    { id: 15, name: 'Glovo', iconId: 24, categoryId: 5, color: '#FFC107' },
+    { id: 16, name: 'Pyszne', iconId: 25, categoryId: 5, color: '#FF9F1C'},
+    { id: 17, name: 'Restauracja', iconId: 26, categoryId: 5, color: '#00F5D4' },
+    { id: 18, name: 'Kino', iconId: 27, categoryId: 6, color: '#9C27B0' },
+    { id: 19, name: 'Gry', iconId: 5, categoryId: 6, color: '#7EA0FF' },
+    { id: 20, name: 'Gry planszowe', iconId: 28, categoryId: 6, color: '#00FA9A' },
+    { id: 21, name: 'Koncerty', iconId: 29, categoryId: 6, color: '#607D8B' },
+    { id: 22, name: 'Subskrypcje', iconId: 30, categoryId: 6, color: '#E71D36' },
+    { id: 23, name: 'Sklep', iconId: 3, categoryId: 7, color: '#E71D36' },
+    { id: 24, name: 'Na mieście', iconId: 31, categoryId: 7, color: '#FF9F1C' },
+    { id: 25, name: 'Środki czystości', iconId: 32, categoryId: 8, color: '#BDE0FE' },
+    { id: 26, name: 'Meble', iconId: 33, categoryId: 8, color: '#2EC4B6' },
+    { id: 27, name: 'Dekoracje', iconId: 34, categoryId: 8, color: '#7FFF00' },
+    { id: 28, name: 'Sprzęty domowe', iconId: 35, categoryId: 8, color: '#00BCD4' },
+    { id: 29, name: 'Paliwo moto', iconId: 24, categoryId: 9, color: '#2196F3' },
+    { id: 30, name: 'Paliwo auto', iconId: 36, categoryId: 9, color: '#FF5722' },
+    { id: 31, name: 'Naprawa moto', iconId: 37, categoryId: 9, color: '#E71D36' },
+    { id: 32, name: 'Naprawa auto', iconId: 38, categoryId: 9, color: '#F4A261' },
+    { id: 33, name: 'Ubezpieczenie moto', iconId: 39, categoryId: 9, color: '#795548' },
+    { id: 34, name: 'Ubezpieczenie auto', iconId: 40, categoryId: 9, color: '#607D8B' },
+    { id: 35, name: 'Taxi', iconId: 41, categoryId: 9, color: '#FFC107' },
+    { id: 36, name: 'Bilety', iconId: 42, categoryId: 9, color: '#F4A261' },
+    { id: 37, name: 'Leki', iconId: 43, categoryId: 10, color: '#FF1493' },
+    { id: 38, name: 'Lekarz', iconId: 44, categoryId: 10, color: '#E71D36' },
+    { id: 39, name: 'Kosmetyki', iconId: 45, categoryId: 10, color: '#9C27B0' },
+    { id: 40, name: 'Fryzjer', iconId: 46, categoryId: 10, color: '#00FA9A' },
+    { id: 41, name: 'Siłownia', iconId: 47, categoryId: 10, color: '#00BCD4' },
+    { id: 42, name: 'Ubrania', iconId: 10, categoryId: 11, color: '#00FA9A' },
+    { id: 43, name: 'Obuwie', iconId: 48, categoryId: 11, color: '#7FFF0' },
+    { id: 44, name: 'Akcesoria', iconId: 49, categoryId: 11, color: '#FF1493' },
+    { id: 45, name: 'Książki', iconId: 50, categoryId: 12, color: '#795548' },
+    { id: 46, name: 'Kurs online', iconId: 51, categoryId: 12, color: '#FF1493' },
+    { id: 47, name: 'Szkolenie', iconId: 52, categoryId: 12, color: '#7EA0FF' },
+    { id: 48, name: 'Materiały edukacyjne', iconId: 53, categoryId: 12, color: '#2EC4B6' },
+    { id: 49, name: 'Subskrypcje', iconId: 30, categoryId: 12, color: '#E71D36' },
   ];
 
   for (const sub of preset_subcategories) {
@@ -364,7 +365,7 @@ export const insertInitialData = async () => {
       sub.name,
       sub.iconId,
       sub.categoryId,
-      '#ccc',
+      sub.color,
     ]);
   }
 

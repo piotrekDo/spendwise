@@ -8,6 +8,7 @@ import { EnvelopesHome } from '../screens/modals/EnvelopesHome';
 import { EnvelopeDetails } from '../screens/modals/EnvelopeDetails';
 import { EnvelopeEdit } from '../screens/modals/EnvelopeEdit';
 import { CategoriesStats } from '../screens/modals/CategoriesStats';
+import { CategoryDetailsModal } from '../screens/modals/CategoryDetailsModal';
 
 export type RootStackParamList = {
   Main: undefined;
@@ -15,7 +16,8 @@ export type RootStackParamList = {
   CategoryEditScreen: { cat?: any } | undefined;
   EnvelopesHome: {month1: number, year: number} | undefined;
   EnvelopeDetails: { envelopeId: number; year: number; month1: number } | undefined;
-  EnvelopeEdit: { envelopeId:number; initialName?:string; initialColor?:string } | undefined
+  EnvelopeEdit: { envelopeId:number; initialName?:string; initialColor?:string } | undefined;
+  CategoryDetails: undefined;
   CategoriesStats: undefined;
 };
 
@@ -28,10 +30,8 @@ export const RootNavigator = () => {
         headerShown: false,
       }}
     >
-      {/* Ekrany główne */}
       <Stack.Screen name="Main" component={TabsNavigator} />
 
-      {/* Ekrany modalne jako przeźroczyste overlaye */}
       <Stack.Screen
         name={routes.MODAL_SUBCATEGORY_EDIT}
         component={SubCategoryEditScreen}
@@ -84,7 +84,17 @@ export const RootNavigator = () => {
           presentation: 'transparentModal',
           contentStyle: { backgroundColor: 'transparent' },
           animation: 'slide_from_bottom',
-          animationDuration: 25
+          animationDuration: 5
+        }}
+      />
+      <Stack.Screen
+        name={routes.CATEGORY_DETAILS}
+        component={CategoryDetailsModal}
+        options={{
+          presentation: 'transparentModal',
+          contentStyle: { backgroundColor: 'transparent' },
+          animation: 'slide_from_bottom',
+          animationDuration: 5
         }}
       />
     </Stack.Navigator>

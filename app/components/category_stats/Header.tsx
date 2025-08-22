@@ -147,17 +147,17 @@ export const Header = ({
               <Text style={styles.listText}>{year - 2}</Text>
               <Text style={styles.listText}>{year - 3}</Text>
               <Text style={styles.listText}>{year - 4}</Text>
-              <Text style={styles.listText}>Avg.</Text>
+              {/* <Text style={styles.listText}>Avg.</Text> */}
             </View>
             {monthLabels.map((_, index) => {
-              const y0 = fiveYearsSums![0][index];
-              const y1 = fiveYearsSums![1][index];
-              const y2 = fiveYearsSums![2][index];
-              const y3 = fiveYearsSums![3][index];
-              const y4 = fiveYearsSums![4][index];
+              const y0 = +fiveYearsSums![0][index].toFixed(2);
+              const y1 = +fiveYearsSums![1][index].toFixed(2);
+              const y2 = +fiveYearsSums![2][index].toFixed(2);
+              const y3 = +fiveYearsSums![3][index].toFixed(2);
+              const y4 = +fiveYearsSums![4][index].toFixed(2);
               const vals = [y0, y1, y2, y3, y4];
               const nonZero = vals.filter(v => v !== 0);
-              const avg = nonZero.length ? nonZero.reduce((a, b) => a + b, 0) / nonZero.length : 0;
+              // const avg = nonZero.length ? nonZero.reduce((a, b) => a + b, 0) / nonZero.length : 0;
               return (
                 <View key={index} style={{ width: '100%', flexDirection: 'row', justifyContent: 'space-between' }}>
                   <Text style={styles.listText}>{monthLabels[index]}</Text>
@@ -166,7 +166,7 @@ export const Header = ({
                   <Text style={styles.listText}>{y2}</Text>
                   <Text style={styles.listText}>{y3}</Text>
                   <Text style={styles.listText}>{y4}</Text>
-                  <Text style={styles.listText}>{avg}</Text>
+                  {/* <Text style={styles.listText}>{avg}</Text> */}
                 </View>
               );
             })}
@@ -195,7 +195,7 @@ export const Header = ({
                     </Text>
                     <Text style={styles.legendPct}>{Math.round(item.pct)}%</Text>
                   </View>
-                  <Text style={styles.legendVal}>{item.value} zł</Text>
+                  <Text style={styles.legendVal}>{item.value.toFixed(2)} zł</Text>
                 </View>
               ))}
             </View>
@@ -246,5 +246,5 @@ const styles = StyleSheet.create({
     borderColor: '#444',
   },
   tooltipText: { color: '#fff', fontSize: 12 },
-  listText: { flex: 1, color: '#fff' },
+  listText: { flex: 1, color: '#fff', fontSize: 12 },
 });

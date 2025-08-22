@@ -8,13 +8,10 @@ import { CatLite } from '../../components/home/CategoryYear';
 import colors from '../../config/colors';
 import {
   CategoryWithSubMulti,
-  CategoryWithSubYearly,
-  getCategoryStatsByYear,
   getCategoryStatsLastNYears,
   groupBySubcategory,
-  SubcategoryMulti,
+  SubcategoryMulti
 } from '../../services/statService';
-import { debugLog, monthLabels } from '../../config/constants';
 
 type RouteParams = { cats: CatLite[]; selectedCategoryId: number };
 
@@ -46,7 +43,6 @@ export const CategoriesStats = () => {
 
   // --- BottomSheet Modal ---
   const sheetRef = useRef<BottomSheetModal>(null);
-  const snapPoints = useMemo(() => ['60%', '92%'], []);
 
   const handleDismiss = useCallback(() => {
     // zamknij ekran po schowaniu bottom sheet
@@ -100,7 +96,7 @@ export const CategoriesStats = () => {
         }
         ListFooterComponent={<View style={{ height: 12 }} />}
         ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
-        renderItem={({ item }) => <SubcategoryStats sub={item} sheetRef={sheetRef} year={year}/>}
+        renderItem={({ item }) => <SubcategoryStats sub={item} sheetRef={sheetRef} year={year} />}
       />
     </BottomSheetModal>
   );

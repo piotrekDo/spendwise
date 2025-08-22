@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, Text, View, ScrollView, TouchableOpacity } from 
 import Constants from 'expo-constants';
 import colors from '../config/colors';
 import { Category } from '../components/Category';
-import { CategoryDetailsModal } from '../components/CategoryDetailsModal';
+import { CategoryDetailsModal } from './modals/CategoryDetailsModal';
 import { NewEntryModal } from '../components/NewEntryModal';
 import { DisplayCategory } from '../model/Spendings';
 import { getCategorySkeletonForSelectedmonth } from '../services/categoriesService';
@@ -12,6 +12,7 @@ import { getSelectedCategorySpendings, getSpendingsInRange, Entry } from '../ser
 import { getBalancesForMonth, getVaultBreakdown } from '../services/balancesService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import routes from '../navigation/routes';
+import { getMonthDateRange } from '../config/constants';
 
 const MONTHS = [
   'Styczeń',
@@ -37,7 +38,6 @@ export const BudgetScreen = () => {
   const [expanded, setExpanded] = useState<number[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [modalSubId, setModalSubId] = useState<number | null>(null);
-  const [categoryDetailsData, setCategoryDetailsData] = useState<Entry[]>([]);
   const [saldoMonth, setSaldoMonth] = useState(0);
   const [saldoVault, setSaldoVault] = useState(0);
   const [saldoTotal, setSaldoTotal] = useState(0);
@@ -50,13 +50,7 @@ export const BudgetScreen = () => {
   const month1 = month0 + 1;
   const year = current.getFullYear();
 
-  const getMonthDateRange = (y: number, m0: number) => {
-    const m = m0 + 1;
-    const start = `${y}-${String(m).padStart(2, '0')}-01`;
-    const last = new Date(y, m, 0).getDate();
-    const end = `${y}-${String(m).padStart(2, '0')}-${last}`;
-    return { start, end };
-  };
+
 
   const loadBalances = async () => {
     const { month, vault, total } = await getBalancesForMonth(year, month1);
@@ -73,11 +67,7 @@ export const BudgetScreen = () => {
   const loadData = async () => {
     const { start, end } = getMonthDateRange(year, month0);
 
-    // Pobierz wpisy (dobrze też przefiltrować isArchived=0 w kwerendzie, jeśli nie chcesz archiwalnych)
     const spendings: Entry[] = await getSpendingsInRange(start, end);
-
-    // Zbierz sumy per subkategoria w jednym przebiegu
-    // map: subId -> { normalSum, financedSum }
     const bySub = new Map<number, { normal: number; financed: number }>();
     for (const e of spendings) {
       const rec = bySub.get(e.subcategoryId) ?? { normal: 0, financed: 0 };
@@ -89,10 +79,8 @@ export const BudgetScreen = () => {
       bySub.set(e.subcategoryId, rec);
     }
 
-    // Złóż wynik na bazie skeletonu
     const merged: DisplayCategory[] = skeleton.map(cat => {
       let catEnvelopeSum = 0;
-
       const updatedSub = cat.subcategories.map(sub => {
         const rec = bySub.get(sub.id) ?? { normal: 0, financed: 0 };
         catEnvelopeSum += rec.financed;
@@ -102,9 +90,7 @@ export const BudgetScreen = () => {
           envelopesSum: rec.financed,
         };
       });
-
       const sum = updatedSub.reduce((acc, s) => acc + s.sum, 0);
-
       return {
         ...cat,
         subcategories: updatedSub,
@@ -112,7 +98,6 @@ export const BudgetScreen = () => {
         envelopesSum: catEnvelopeSum,
       };
     });
-
     setData(merged);
   };
 
@@ -137,10 +122,15 @@ export const BudgetScreen = () => {
     setShowModal(true);
   };
 
-  const openCategoryDetailsModal = async (categoryId: number) => {
+  const openCategoryDetailsModal = async (cat: DisplayCategory) => {
     const { start, end } = getMonthDateRange(year, month0);
-    const entries = await getSelectedCategorySpendings(categoryId, start, end);
-    setCategoryDetailsData(entries);
+    const entries = await getSelectedCategorySpendings(cat.id, start, end);
+    navigation.navigate(routes.CATEGORY_DETAILS, {
+      data: entries,
+      displayName: cat.name,
+      displayIcon: cat.icon,
+      displayColor: cat.color
+    });
   };
 
   const openEnvelopesModal = () => {
@@ -149,7 +139,6 @@ export const BudgetScreen = () => {
 
   return (
     <View style={{ flex: 1, paddingTop: Constants.statusBarHeight, backgroundColor: colors.background }}>
-      {/* Pasek nawigacji po miesiącach */}
       <View style={styles.navBar}>
         <Pressable onPress={() => setMonthOffset(o => o - 1)}>
           <Text style={styles.navArrow}>◀</Text>
@@ -212,7 +201,7 @@ export const BudgetScreen = () => {
             expanded={expanded}
             toggleExpand={toggleExpand}
             openAddModal={openAddModal}
-            openCategoryDetailsModal={() => openCategoryDetailsModal(cat.id)}
+            openCategoryDetailsModal={(id, name) => openCategoryDetailsModal(cat)}
           />
         ))}
       </ScrollView>
@@ -227,19 +216,6 @@ export const BudgetScreen = () => {
             await loadData();
             await loadBalances();
             if (vaultOpen) await loadVaultBreakdown();
-          }}
-        />
-      )}
-
-      {categoryDetailsData.length > 0 && (
-        <CategoryDetailsModal
-          data={categoryDetailsData}
-          onClose={() => setCategoryDetailsData([])}
-          onRefresh={async entryId => {
-            await loadData();
-            await loadBalances();
-            if (vaultOpen) await loadVaultBreakdown();
-            setCategoryDetailsData(s => s.filter(c => c.id !== entryId));
           }}
         />
       )}

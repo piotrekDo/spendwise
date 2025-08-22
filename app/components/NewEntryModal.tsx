@@ -175,7 +175,7 @@ export const NewEntryModal = ({ monthOffset, subcategoryId, onClose, onSave }: P
             <DateTimePicker
               value={date}
               mode="date"
-              display="spinner"
+              display='compact'
               locale="pl-PL"
               onChange={(event, selected) => {
                 if (selected) {

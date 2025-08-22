@@ -3,11 +3,12 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import colors from '../../config/colors';
-import { monthLabels, RADIUS } from '../../config/constants';
+import { getMonthDateRange, monthLabels, RADIUS } from '../../config/constants';
 import { BarChart } from 'react-native-gifted-charts';
 import { getExpenseCategoriesLite, getCategoryYearSeries, CatMonthRow } from '../../services/statService';
 import { useNavigation } from '@react-navigation/native';
 import routes from '../../navigation/routes';
+import { getSelectedCategorySpendings } from '../../services/entriesService';
 
 type Props = { year: number };
 
@@ -18,7 +19,7 @@ export const CategoryYear = ({ year }: Props) => {
   const navigation = useNavigation<any>();
 
   const [cats, setCats] = useState<CatLite[]>([]);
-  const [catId, setCatId] = useState<number | null>(null);
+  const [selectedCat, setSelectedCat] = useState<CatLite | null>(null);
   const [series, setSeries] = useState<CatMonthRow[]>([]);
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
@@ -27,23 +28,23 @@ export const CategoryYear = ({ year }: Props) => {
     (async () => {
       const list = await getExpenseCategoriesLite();
       setCats(list);
-      if (list.length && catId === null) setCatId(list[0].id);
+      if (list.length && selectedCat?.id === null) setSelectedCat(list[0]);
     })();
   }, []);
 
   useEffect(() => {
-    if (!catId) return;
+    if (!selectedCat) return;
     (async () => {
       setLoading(true);
       try {
-        const rows = await getCategoryYearSeries(year, catId);
+        const rows = await getCategoryYearSeries(year, selectedCat.id);
         setSeries(rows);
         setFocusedIndex(null);
       } finally {
         setLoading(false);
       }
     })();
-  }, [year, catId]);
+  }, [year, selectedCat]);
 
   const total = useMemo(() => series.reduce((a, r) => a + r.sum, 0), [series]);
   const avg = useMemo(() => (series.length ? total / series.length : 0), [series, total]);
@@ -66,18 +67,30 @@ export const CategoryYear = ({ year }: Props) => {
   const barData = series.map((r, i) => ({
     value: r.sum,
     label: monthLabels[i],
+    month: i,
     onPress: () => setFocusedIndex(i),
   }));
 
   const isEmpty = barData.every(b => b.value === 0);
-  const active = cats.find(c => c.id === catId);
+  const active = cats.find(c => c.id === selectedCat?.id);
 
   const navigateToStats = () => {
     navigation.navigate(routes.CATEGORIES_STATS, {
       cats: cats,
-      selectedCategoryId: catId,
+      selectedCategoryId: selectedCat?.id,
     });
   };
+
+  const handleOpenEntryDetailsModal = async (month0: number) => {
+        const { start, end } = getMonthDateRange(year, month0);
+        const entries = await getSelectedCategorySpendings(selectedCat?.id!, start, end);
+        navigation.navigate(routes.CATEGORY_DETAILS, {
+          data: entries,
+          displayName: selectedCat?.name,
+          displayIcon: selectedCat?.icon,
+          displayColor: selectedCat?.color
+        });
+  }
 
   return (
     <View style={styles.card}>
@@ -92,11 +105,11 @@ export const CategoryYear = ({ year }: Props) => {
         contentContainerStyle={{ paddingVertical: 4, paddingHorizontal: 8 }}
       >
         {cats.map((c, idx) => {
-          const selected = c.id === catId;
+          const selected = c.id === selectedCat?.id;
           return (
             <TouchableOpacity
               key={c.id}
-              onPress={() => setCatId(c.id)}
+              onPress={() => setSelectedCat(c)}
               style={[
                 styles.chip,
                 { borderColor: c.color },
@@ -127,6 +140,7 @@ export const CategoryYear = ({ year }: Props) => {
             yAxisTextStyle={{ color: '#9aa' }}
             yAxisColor='transparent'
             xAxisColor='transparent'
+            onLongPress={(item: any) => {handleOpenEntryDetailsModal(item.month)}}
             renderTooltip={(item: any, index: number) => {
               if (index !== focusedIndex) return null;
               return (

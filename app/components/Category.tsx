@@ -10,11 +10,10 @@ interface Props {
   expanded: number[];
   toggleExpand: (id: number) => void;
   openAddModal: (subId: number) => void;
-  openCategoryDetailsModal: (categoryId: number) => void;
+  openCategoryDetailsModal: (categoryId: number, displayName: string) => void;
 }
 
 export const Category = ({ item, expanded, toggleExpand, openAddModal, openCategoryDetailsModal }: Props) => {
-  // defensywnie: limit może być null/undefined/0
   const hasLimit = useMemo(
     () => typeof item.limit === 'number' && isFinite(item.limit) && item.limit > 0,
     [item.limit]
@@ -30,9 +29,9 @@ export const Category = ({ item, expanded, toggleExpand, openAddModal, openCateg
 
   const progressColor = useMemo(() => {
     if (!hasLimit) return 'transparent';
-    if (overLimit) return '#E53935'; // > 100% – czerwony
-    if (progress >= 0.8) return '#FB8C00'; // 80–100% – pomarańczowy
-    return '#43A047'; // < 80% – zielony
+    if (overLimit) return '#E53935'; 
+    if (progress >= 0.8) return '#FB8C00'; 
+    return '#43A047'; 
   }, [hasLimit, progress, overLimit]);
 
   return (
@@ -41,7 +40,7 @@ export const Category = ({ item, expanded, toggleExpand, openAddModal, openCateg
         <View style={styles.card}>
           <TouchableOpacity
             style={styles.cardLeft}
-            onPress={() => openCategoryDetailsModal(item.id)}
+            onPress={() => openCategoryDetailsModal(item.id, item.name)}
             accessibilityRole='button'
           >
             <MaterialCommunityIcons name={item.icon} size={28} color={item.color} />

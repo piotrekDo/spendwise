@@ -1,4 +1,4 @@
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useFocusEffect } from '@react-navigation/native';
 import Constants from 'expo-constants';
 import React, { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -11,7 +11,6 @@ import { getBalancesForMonth } from '../services/balancesService';
 import { CategoryYear } from '../components/home/CategoryYear';
 
 export const HomeScreen = () => {
-  const navigation = useNavigation<any>();
 
   const [monthOffset, setMonthOffset] = useState(0);
 

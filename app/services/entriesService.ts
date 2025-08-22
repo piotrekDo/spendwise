@@ -119,7 +119,6 @@ export const addEntry = async (subcategoryId: number, amount: number, descriptio
 
 export const getSpendingsInRange = async (startDate: string, endDate: string): Promise<Entry[]> => {
   const db = getDb();
-
   const query = `
     ${SELECT_ENTRY}
     WHERE e.date BETWEEN ? AND ?
@@ -129,6 +128,18 @@ export const getSpendingsInRange = async (startDate: string, endDate: string): P
   const rows = await db.getAllAsync(query, [startDate, endDate]);
   return rows.map((r: any) => mapEntry(r));
 };
+
+export const getAllSubCatEntries = async (subcatId: number) => {
+  const db = getDb();
+    const query = `
+    ${SELECT_ENTRY}
+    WHERE s.id = ?
+    ORDER BY e.date DESC, e.id DESC
+  `;
+
+  const rows = await db.getAllAsync(query, [subcatId]);
+  return rows.map((r: any) => mapEntry(r));
+}
 
 export const getSelectedCategorySpendings = async (categoryId: number, startDate: string, endDate: string) => {
   const db = getDb();

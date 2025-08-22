@@ -28,8 +28,8 @@ export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <BottomSheetModalProvider>
-          <NavigationContainer theme={navigationTheme}>
+        <NavigationContainer theme={navigationTheme}>
+          <BottomSheetModalProvider>
             {isDbReady ? (
               <RootNavigator />
             ) : (
@@ -38,8 +38,8 @@ export default function App() {
               </View>
             )}
             <StatusBar style='light' />
-          </NavigationContainer>
-        </BottomSheetModalProvider>
+          </BottomSheetModalProvider>
+        </NavigationContainer>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

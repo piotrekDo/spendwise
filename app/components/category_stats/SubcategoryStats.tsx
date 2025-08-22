@@ -1,12 +1,15 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { BottomSheetModal } from '@gorhom/bottom-sheet';
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Pressable, ScrollView } from 'react-native-gesture-handler';
 import { BarChart } from 'react-native-gifted-charts';
-import { getCategoryStatsLastNYears, SubcategoryMulti, SubCatYearly } from '../../services/statService';
-import { debugLog, monthLabels } from '../../config/constants';
-
+import { monthLabels } from '../../config/constants';
+import { SubcategoryMulti } from '../../services/statService';
+import { useNavigation } from '@react-navigation/native';
+import routes from '../../navigation/routes';
+import { getAllSubCatEntries } from '../../services/entriesService';
+import { StackActions } from '@react-navigation/native';
 interface Props {
   sub: SubcategoryMulti;
   sheetRef: React.RefObject<BottomSheetModal | null>;
@@ -35,14 +38,28 @@ export const viewIcons = new Map([
   ['list', 'clipboard-list'],
 ]);
 
-export const SubcategoryStats = ({ sub, sheetRef , year}: Props) => {
+export const SubcategoryStats = ({ sub, sheetRef, year }: Props) => {
+  const navigation = useNavigation<any>();
   const [view, setView] = useState<ViewType>('chart');
 
   const handleHangeView = () => {
     setView(s => (s === 'chart' ? 'list' : 'chart'));
   };
 
-  const total = 0;
+const handleOpenDetails = async () => {
+  const entries = await getAllSubCatEntries(sub.subcategoryId);
+  requestAnimationFrame(() => {
+    navigation.navigate(routes.CATEGORY_DETAILS, { 
+      data: entries,
+      displayName: sub.name,
+      displayIcon: sub.icon,
+      displayColor: sub.color,
+      fullScreen: true,
+    });
+  });
+};
+
+  const total = sub.years[0].sumsByMonth.reduce((a, v) => a + v, 0);
   const empty = false;
 
   const chartData = () => {
@@ -53,24 +70,36 @@ export const SubcategoryStats = ({ sub, sheetRef , year}: Props) => {
     }));
   };
 
-    const fiveYearsSums = sub?.years.map(y => y.sumsByMonth);
+  const fiveYearsSums = sub?.years.map(y => y.sumsByMonth);
 
   return (
     <View style={styles.subRow}>
-      <Pressable style={styles.subHeader} onPress={handleHangeView}>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <MaterialCommunityIcons
-            name={viewIcons.get(view) as any}
-            size={25}
-            color={sub.color}
-            style={{ marginRight: 10 }}
-          />
-          <MaterialCommunityIcons name={sub.icon as any} size={18} color={sub.color} />
-          <Text style={styles.subName}>{sub.name}</Text>
-        </View>
-        <Text style={styles.subTotal}>{total.toFixed(2)} zł</Text>
-      </Pressable>
+      <View style={styles.subHeader}>
+        <Pressable onPress={handleHangeView}>
+          <View style={styles.listButton}>
+            <MaterialCommunityIcons
+              name={viewIcons.get(view) as any}
+              size={25}
+              color={sub.color}
+              style={{ marginRight: 10 }}
+            />
+            <MaterialCommunityIcons name={sub.icon as any} size={18} color={sub.color} />
+            <Text style={styles.subName}>{sub.name}</Text>
+          </View>
+        </Pressable>
 
+        <Pressable onPress={handleOpenDetails}>
+          <View style={styles.listButton}>
+            <Text style={styles.subName}>{total.toFixed(2)} zł</Text>
+            <MaterialCommunityIcons
+              name={'format-list-bulleted'}
+              size={25}
+              color={sub.color}
+              style={{ marginLeft: 10 }}
+            />
+          </View>
+        </Pressable>
+      </View>
       <View style={{ justifyContent: 'center', alignItems: 'center', height: 230 }}>
         {empty ? (
           <Text style={styles.loading}>Brak danych</Text>
@@ -119,14 +148,20 @@ export const SubcategoryStats = ({ sub, sheetRef , year}: Props) => {
               <Text style={styles.listText}>{year - 4}</Text>
             </View>
             {monthLabels.map((_, index) => {
+              const y0 = +fiveYearsSums![0][index].toFixed(2);
+              const y1 = +fiveYearsSums![1][index].toFixed(2);
+              const y2 = +fiveYearsSums![2][index].toFixed(2);
+              const y3 = +fiveYearsSums![3][index].toFixed(2);
+              const y4 = +fiveYearsSums![4][index].toFixed(2);
+
               return (
                 <View key={index} style={{ width: '100%', flexDirection: 'row', justifyContent: 'space-between' }}>
                   <Text style={styles.listText}>{monthLabels[index]}</Text>
-                  <Text style={styles.listText}>{fiveYearsSums![0][index]}</Text>
-                  <Text style={styles.listText}>{fiveYearsSums![1][index]}</Text>
-                  <Text style={styles.listText}>{fiveYearsSums![2][index]}</Text>
-                  <Text style={styles.listText}>{fiveYearsSums![3][index]}</Text>
-                  <Text style={styles.listText}>{fiveYearsSums![4][index]}</Text>
+                  <Text style={styles.listText}>{y0 > 0 && y0}</Text>
+                  <Text style={styles.listText}>{y1 > 0 && y1}</Text>
+                  <Text style={styles.listText}>{y2 > 0 && y2}</Text>
+                  <Text style={styles.listText}>{y3 > 0 && y3}</Text>
+                  <Text style={styles.listText}>{y4 > 0 && y4}</Text>
                 </View>
               );
             })}
@@ -155,9 +190,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: 20,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
   },
   subName: { color: '#fff', marginLeft: 8, fontWeight: '600' },
   subTotal: { color: '#fff', fontWeight: '700' },
@@ -173,4 +205,11 @@ const styles = StyleSheet.create({
   },
   tooltipText: { color: '#fff', fontSize: 12 },
   listText: { flex: 1, color: '#fff' },
+  listButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingTop: 20,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
+  },
 });
