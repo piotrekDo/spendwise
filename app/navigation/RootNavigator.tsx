@@ -9,9 +9,11 @@ import { EnvelopeDetails } from '../screens/modals/EnvelopeDetails';
 import { EnvelopeEdit } from '../screens/modals/EnvelopeEdit';
 import { CategoriesStats } from '../screens/modals/CategoriesStats';
 import { CategoryDetailsModal } from '../screens/modals/CategoryDetailsModal';
+import { NewEntryModal } from '../screens/modals/NewEntryModal';
 
 export type RootStackParamList = {
   Main: undefined;
+  NewEntryModal: undefined;
   SubCategoryEditScreen: { sub?: any; expandedCategory: number } | undefined;
   CategoryEditScreen: { cat?: any } | undefined;
   EnvelopesHome: {month1: number, year: number} | undefined;
@@ -32,6 +34,15 @@ export const RootNavigator = () => {
     >
       <Stack.Screen name="Main" component={TabsNavigator} />
 
+      <Stack.Screen
+        name={routes.NEW_ENTRY_MODAL}
+        component={NewEntryModal}
+        options={{
+          presentation: 'transparentModal',
+          contentStyle: { backgroundColor: 'transparent' },
+          animation: 'fade',
+        }}
+      />
       <Stack.Screen
         name={routes.MODAL_SUBCATEGORY_EDIT}
         component={SubCategoryEditScreen}

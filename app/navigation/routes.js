@@ -12,5 +12,6 @@ export default Object.freeze({
   ENVELOPE_DETAILS: 'EnvelopeDetails',
   ENVELOPE_EDIT: 'EnvelopeEdit',
   CATEGORY_DETAILS: 'CategoryDetails',
-  CATEGORIES_STATS: 'CategoriesStats'
+  CATEGORIES_STATS: 'CategoriesStats',
+  NEW_ENTRY_MODAL: 'NewEntryModal',
 });

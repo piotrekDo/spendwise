@@ -1,18 +1,12 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, Modal, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert } from 'react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
-import colors from '../config/colors';
-import { addEntry } from '../services/entriesService';
-import { getActiveEnvelopes, spendFromEnvelope, depositToEnvelope, Envelope } from '../services/envelopesService';
-import { getDb } from '../database/db';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-
-type Props = {
-  monthOffset: number;
-  subcategoryId: number;
-  onClose: () => void;
-  onSave: () => void;
-};
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Alert, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import colors from '../../config/colors';
+import { getDb } from '../../database/db';
+import { addEntry } from '../../services/entriesService';
+import { depositToEnvelope, Envelope, getActiveEnvelopes, spendFromEnvelope } from '../../services/envelopesService';
 
 const dateToYMD = (d: Date) => {
   const y = d.getFullYear();
@@ -21,7 +15,15 @@ const dateToYMD = (d: Date) => {
   return `${y}-${m}-${day}`;
 };
 
-export const NewEntryModal = ({ monthOffset, subcategoryId, onClose, onSave }: Props) => {
+type RouteParams = { monthOffset: number; subcategoryId: number };
+
+export const NewEntryModal = () => {
+  const route = useRoute();
+  const navigation = useNavigation<any>();
+  const { monthOffset, subcategoryId } = route.params as RouteParams;
+  console.log('monthofset', monthOffset);
+  console.log('cat', subcategoryId);
+
   const today = new Date();
   const year = today.getFullYear();
   const month = today.getMonth() + monthOffset;
@@ -138,22 +140,22 @@ export const NewEntryModal = ({ monthOffset, subcategoryId, onClose, onSave }: P
         // zwykły wpis (dochód/wydatek)
         await addEntry(subcategoryId, amt, description, isoDate);
       }
-
-      onSave();
     } catch (e: any) {
       Alert.alert('Błąd', e?.message || 'Nie udało się zapisać wpisu.');
     }
+
+    navigation.goBack();
   };
 
   return (
-    <Modal transparent animationType="fade">
+    <Modal transparent animationType='fade'>
       <View style={styles.overlay}>
         <View style={styles.modal}>
           <Text style={styles.label}>Kwota</Text>
           <TextInput
             style={styles.input}
-            keyboardType="numeric"
-            placeholder="0.00"
+            keyboardType='numeric'
+            placeholder='0.00'
             value={amount}
             onChangeText={setAmount}
           />
@@ -161,7 +163,7 @@ export const NewEntryModal = ({ monthOffset, subcategoryId, onClose, onSave }: P
           <Text style={styles.label}>Opis (opcjonalnie)</Text>
           <TextInput
             style={styles.input}
-            placeholder="Np. Czynsz / Telewizor"
+            placeholder='Np. Czynsz / Telewizor'
             value={description}
             onChangeText={setDescription}
           />
@@ -174,17 +176,12 @@ export const NewEntryModal = ({ monthOffset, subcategoryId, onClose, onSave }: P
           {showDatePicker && (
             <DateTimePicker
               value={date}
-              mode="date"
+              mode='date'
               display='compact'
-              locale="pl-PL"
+              locale='pl-PL'
               onChange={(event, selected) => {
                 if (selected) {
-                  const d = new Date(
-                    selected.getFullYear(),
-                    selected.getMonth(),
-                    selected.getDate(),
-                    12, 0, 0, 0
-                  );
+                  const d = new Date(selected.getFullYear(), selected.getMonth(), selected.getDate(), 12, 0, 0, 0);
                   setDate(d);
                 }
                 setShowDatePicker(false);
@@ -200,7 +197,7 @@ export const NewEntryModal = ({ monthOffset, subcategoryId, onClose, onSave }: P
                 <TouchableOpacity
                   onPress={() => setFinanceWithEnvelope(v => !v)}
                   style={[styles.switchLike, financeWithEnvelope && { backgroundColor: colors.primary }]}
-                  accessibilityRole="switch"
+                  accessibilityRole='switch'
                   accessibilityState={{ checked: financeWithEnvelope }}
                 >
                   <View style={[styles.switchKnob, financeWithEnvelope && { transform: [{ translateX: 18 }] }]} />
@@ -231,21 +228,19 @@ export const NewEntryModal = ({ monthOffset, subcategoryId, onClose, onSave }: P
                         >
                           <View style={[styles.envDot, { backgroundColor: e.color }]} />
                           <View style={{ maxWidth: 180 }}>
-                            <Text
-                              style={[styles.envText, selected && { fontWeight: '700' }]}
-                              numberOfLines={1}
-                            >
+                            <Text style={[styles.envText, selected && { fontWeight: '700' }]} numberOfLines={1}>
                               {e.name}
                             </Text>
                             <Text style={styles.envSub} numberOfLines={1}>
-                              Saldo: {Number(e.saldo ?? 0).toFixed(2)}{typeof e.target === 'number' ? ` / ${Number(e.target).toFixed(2)}` : ''} zł
+                              Saldo: {Number(e.saldo ?? 0).toFixed(2)}
+                              {typeof e.target === 'number' ? ` / ${Number(e.target).toFixed(2)}` : ''} zł
                             </Text>
                           </View>
                           {selected && (
                             <MaterialCommunityIcons
-                              name="check-circle"
+                              name='check-circle'
                               size={18}
-                              color="#fff"
+                              color='#fff'
                               style={{ marginLeft: 6 }}
                             />
                           )}
@@ -279,7 +274,7 @@ export const NewEntryModal = ({ monthOffset, subcategoryId, onClose, onSave }: P
                       <TouchableOpacity
                         onPress={() => setAutoTopUp(v => !v)}
                         style={[styles.switchLike, autoTopUp && { backgroundColor: colors.primary }]}
-                        accessibilityRole="switch"
+                        accessibilityRole='switch'
                         accessibilityState={{ checked: autoTopUp }}
                       >
                         <View style={[styles.switchKnob, autoTopUp && { transform: [{ translateX: 18 }] }]} />
@@ -295,7 +290,7 @@ export const NewEntryModal = ({ monthOffset, subcategoryId, onClose, onSave }: P
             <TouchableOpacity onPress={handleSubmit}>
               <Text style={styles.save}>✔</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={onClose}>
+            <TouchableOpacity onPress={() => navigation.goBack()}>
               <Text style={styles.cancel}>✖</Text>
             </TouchableOpacity>
           </View>
