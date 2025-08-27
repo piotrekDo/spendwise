@@ -10,10 +10,12 @@ import { useNavigation } from '@react-navigation/native';
 import routes from '../../navigation/routes';
 import { getAllSubCatEntries } from '../../services/entriesService';
 import { StackActions } from '@react-navigation/native';
+import { Moneyloader } from '../Moneyloader';
 interface Props {
   sub: SubcategoryMulti;
   sheetRef: React.RefObject<BottomSheetModal | null>;
   year: number;
+  isLoading: boolean;
 }
 
 export type ViewType = 'chart' | 'list';
@@ -38,7 +40,7 @@ export const viewIcons = new Map([
   ['list', 'clipboard-list'],
 ]);
 
-export const SubcategoryStats = ({ sub, sheetRef, year }: Props) => {
+export const SubcategoryStats = ({ sub, sheetRef, year, isLoading }: Props) => {
   const navigation = useNavigation<any>();
   const [view, setView] = useState<ViewType>('chart');
 
@@ -72,6 +74,10 @@ const handleOpenDetails = async () => {
 
   const fiveYearsSums = sub?.years.map(y => y.sumsByMonth);
 
+  if (isLoading) {
+    return null
+  }
+
   return (
     <View style={styles.subRow}>
       <View style={styles.subHeader}>
@@ -88,17 +94,17 @@ const handleOpenDetails = async () => {
           </View>
         </Pressable>
 
-        <Pressable onPress={handleOpenDetails}>
           <View style={styles.listButton}>
             <Text style={styles.subName}>{total.toFixed(2)} zł</Text>
+        <Pressable onPress={handleOpenDetails}>
             <MaterialCommunityIcons
               name={'format-list-bulleted'}
               size={25}
               color={sub.color}
               style={{ marginLeft: 10 }}
             />
-          </View>
         </Pressable>
+          </View>
       </View>
       <View style={{ justifyContent: 'center', alignItems: 'center', height: 230 }}>
         {empty ? (

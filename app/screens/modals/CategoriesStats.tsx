@@ -1,6 +1,6 @@
 import { BottomSheetBackdrop, BottomSheetFlatList, BottomSheetModal } from '@gorhom/bottom-sheet';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useReducer, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Header } from '../../components/category_stats/Header';
 import { SubcategoryStats } from '../../components/category_stats/SubcategoryStats';
@@ -10,52 +10,73 @@ import {
   CategoryWithSubMulti,
   getCategoryStatsLastNYears,
   groupBySubcategory,
-  SubcategoryMulti
+  SubcategoryMulti,
 } from '../../services/statService';
+import useMonthCategoryStats from '../../state/useMonthCategoryStats';
 
-type RouteParams = { cats: CatLite[]; selectedCategoryId: number };
+type RouteParams = { cats: CatLite[] };
+
+type LocalState = {
+  isNYearsLoading: boolean;
+  yearlyCategory?: CategoryWithSubMulti;
+  groupedSubcategories: SubcategoryMulti[];
+  focusedBarIdxCat: number | null;
+};
+
+const initialLocal: LocalState = {
+  isNYearsLoading: false,
+  yearlyCategory: undefined,
+  groupedSubcategories: [],
+  focusedBarIdxCat: null,
+};
+
+function reducer(state: LocalState, patch: Partial<LocalState>) {
+  return { ...state, ...patch };
+}
 
 export const CategoriesStats = () => {
   const navigation = useNavigation<any>();
   const route = useRoute();
-  const { cats, selectedCategoryId } = route.params as RouteParams;
+  const { cats } = route.params as RouteParams;
+  const year = useMonthCategoryStats(s => s.year);
+  const selectedCategory = useMonthCategoryStats(s => s.selectedCategory);
+  const isDataloading = useMonthCategoryStats(s => s.isDataloading);
+  const [local, setLocal] = useReducer(reducer, initialLocal);
 
-  const [catId, setCatId] = useState<number>(selectedCategoryId);
-  const [yearlyCategory, setYearlyCategory] = useState<CategoryWithSubMulti | undefined>();
-  const [groupedSubcategories, setGroupedSubcategories] = useState<SubcategoryMulti[]>([]);
-  const [focusedBarIdxCat, setFocusedBarIdxCat] = useState<number | null>(null);
-  const year = 2025;
+  const isUiLoading = isDataloading || local.isNYearsLoading;
 
   useEffect(() => {
+    if (!selectedCategory) return;
+    setLocal({ isNYearsLoading: true });
     let alive = true;
     (async () => {
-      const data = await getCategoryStatsLastNYears(catId, year, 5, 'allYears');
+      const data = await getCategoryStatsLastNYears(selectedCategory.id, year, 5, 'allYears');
       // debugLog(data, 'Stats');
+      setLocal({ isNYearsLoading: false });
       if (!alive) return;
-      setYearlyCategory(data);
-      setFocusedBarIdxCat(null);
-      setGroupedSubcategories(groupBySubcategory(data));
+        setLocal({
+          isNYearsLoading: false,
+          yearlyCategory: data,
+          focusedBarIdxCat: null,
+          groupedSubcategories: groupBySubcategory(data),
+        });
     })();
     return () => {
       alive = false;
     };
-  }, [catId, year]);
+  }, [selectedCategory, year]);
 
-  // --- BottomSheet Modal ---
   const sheetRef = useRef<BottomSheetModal>(null);
 
   const handleDismiss = useCallback(() => {
-    // zamknij ekran po schowaniu bottom sheet
     navigation.goBack();
   }, [navigation]);
 
-  // otwórz bottom sheet po zamontowaniu ekranu
   useEffect(() => {
     const id = requestAnimationFrame(() => sheetRef.current?.present());
     return () => cancelAnimationFrame(id);
   }, []);
 
-  // Backdrop (kliknięcie zamyka)
   const renderBackdrop = useCallback(
     (props: any) => (
       <BottomSheetBackdrop {...props} appearsOnIndex={0} disappearsOnIndex={-1} pressBehavior='close' opacity={0.5} />
@@ -78,24 +99,25 @@ export const CategoriesStats = () => {
       keyboardBehavior='interactive'
       keyboardBlurBehavior='restore'
     >
-      <BottomSheetFlatList
-        contentContainerStyle={{ paddingBottom: 16, paddingHorizontal: 16 }}
-        bounces
-        data={groupedSubcategories}
-        keyExtractor={sub => String(sub.subcategoryId)}
-        ListHeaderComponent={
-          <Header
-            cats={cats}
-            yearlyCategory={yearlyCategory}
-            focusedBarIdxCat={focusedBarIdxCat}
-            setCatId={setCatId}
-            setFocusedBarIdxCat={setFocusedBarIdxCat}
-          />
-        }
-        ListFooterComponent={<View style={{ height: 12 }} />}
-        ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
-        renderItem={({ item }) => <SubcategoryStats sub={item} sheetRef={sheetRef} year={year} />}
-      />
+
+        <BottomSheetFlatList
+          contentContainerStyle={{ paddingBottom: 16, paddingHorizontal: 16 }}
+          bounces
+          data={local.groupedSubcategories}
+          keyExtractor={sub => String(sub.subcategoryId)}
+          ListHeaderComponent={
+            <Header
+              cats={cats}
+              yearlyCategory={local.yearlyCategory}
+              focusedBarIdxCat={local.focusedBarIdxCat}
+              setFocusedBarIdxCat={(i: number | null) => setLocal({ focusedBarIdxCat: i })}
+              isLoading={isUiLoading} 
+            />
+          }
+          ListFooterComponent={<View style={{ height: 12 }} />}
+          ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
+          renderItem={({ item }) => <SubcategoryStats sub={item} sheetRef={sheetRef} year={year} isLoading={isUiLoading} />}
+        />
     </BottomSheetModal>
   );
 };

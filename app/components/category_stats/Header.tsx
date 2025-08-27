@@ -1,5 +1,5 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { BarChart, PieChart } from 'react-native-gifted-charts';
 import { CatLite } from '../../components/home/CategoryYear';
@@ -14,11 +14,11 @@ interface Props {
   cats: CatLite[];
   yearlyCategory: CategoryWithSubMulti | undefined;
   focusedBarIdxCat: number | null;
-  setFocusedBarIdxCat: React.Dispatch<React.SetStateAction<number | null>>;
-  setCatId: React.Dispatch<React.SetStateAction<number>>;
+  isLoading: boolean;
+  setFocusedBarIdxCat: (i: number | null) => void;
 }
 
-export const Header = ({ cats, yearlyCategory, focusedBarIdxCat, setFocusedBarIdxCat, setCatId }: Props) => {
+export const Header = ({ cats, yearlyCategory, focusedBarIdxCat, isLoading, setFocusedBarIdxCat }: Props) => {
   const {
     selectedCategory,
     year,
@@ -32,18 +32,15 @@ export const Header = ({ cats, yearlyCategory, focusedBarIdxCat, setFocusedBarId
     minNonZeroIdx,
     barData,
   } = useMonthCategoryStats();
+
   const [view, setView] = useState<ViewType>('chart');
 
-  const categoryYearData = useMemo(() => {
-    const sums = yearlyCategory?.years[0].sumsByMonth ?? Array(12).fill(0);
-    return sums.map((value, i) => ({
-      value,
-      label: monthLabels[i],
-      onPress: () => setFocusedBarIdxCat(prev => (prev === i ? null : i)),
-    }));
-  }, [yearlyCategory]);
+  const onSetFocusedBarIdxHandler = (index: number) => {
+    console.log(focusedBarIdxCat, index)
+    setFocusedBarIdxCat(focusedBarIdxCat === index ? null : index);
+  }
 
-  const isCatEmpty = useMemo(() => categoryYearData.every(b => (b.value ?? 0) === 0), [categoryYearData]);
+  const isCatEmpty = useMemo(() => !barData || barData.every(b => (b.value ?? 0) === 0), [barData]);
 
   const pieSourceMonth = focusedBarIdxCat;
   const pieSlices = useMemo(() => {
@@ -78,7 +75,7 @@ export const Header = ({ cats, yearlyCategory, focusedBarIdxCat, setFocusedBarId
 
   const fiveYearsSums = yearlyCategory?.years.map(y => y.sumsByMonth);
   return (
-    <View>
+    <View style={{ flex: 1, height: '100%' }}>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -91,7 +88,6 @@ export const Header = ({ cats, yearlyCategory, focusedBarIdxCat, setFocusedBarId
               key={c.id}
               onPress={() => {
                 setSelectedCategory(c);
-                setCatId(c.id);
               }}
               hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
               style={[styles.chip, selected && { backgroundColor: c.color + '22', transform: [{ translateY: -4 }] }]}
@@ -101,135 +97,141 @@ export const Header = ({ cats, yearlyCategory, focusedBarIdxCat, setFocusedBarId
           );
         })}
       </ScrollView>
-
-      <Pressable style={styles.cardHeader} onPress={handleHangeView}>
-        <MaterialCommunityIcons
-          name={viewIcons.get(view) as any}
-          size={25}
-          color={yearlyCategory?.color}
-          style={{ marginRight: 10 }}
-        />
-        <Text style={styles.cardTitle}>
-          {yearlyCategory?.name ?? 'Kategoria'} {year}
-        </Text>
-      </Pressable>
-
-      <View style={{ height: 300, justifyContent: 'space-between', alignItems: 'center' }}>
-        {!yearlyCategory ? (
-          <Text style={styles.loading}>Ładowanie…</Text>
-        ) : isCatEmpty ? (
-          <Text style={styles.loading}>Brak danych dla kategorii</Text>
-        ) : view === 'chart' ? (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} directionalLockEnabled nestedScrollEnabled>
-            <BarChart
-              data={barData}
-              barWidth={16}
-              spacing={16}
-              noOfSections={4}
-              frontColor={yearlyCategory.color}
-              rulesColor='#2E2F36'
-              xAxisLabelTextStyle={{ color: '#9aa' }}
-              yAxisTextStyle={{ color: '#9aa' }}
-              yAxisColor='transparent'
-              xAxisColor='transparent'
-              renderTooltip={(item: any, index: number) => {
-                return (
-                  <View style={styles.tooltip}>
-                    <Text style={styles.tooltipText}>
-                      {item.label}: {Number(item.value).toFixed(2)} zł
-                    </Text>
-                  </View>
-                );
-              }}
+      {isLoading && <View style={{ flex: 1, height: '100%' }}></View>}
+      {!isLoading && (
+        <>
+          <Pressable style={styles.cardHeader} onPress={handleHangeView}>
+            <MaterialCommunityIcons
+              name={viewIcons.get(view) as any}
+              size={25}
+              color={yearlyCategory?.color}
+              style={{ marginRight: 10 }}
             />
-          </ScrollView>
-        ) : (
-          <View style={{ width: '100%' }}>
-            <View style={{ width: '100%', flexDirection: 'row', justifyContent: 'space-between' }}>
-              <Text style={styles.listText}></Text>
-              <Text style={styles.listText}>{year}</Text>
-              <Text style={styles.listText}>{year - 1}</Text>
-              <Text style={styles.listText}>{year - 2}</Text>
-              <Text style={styles.listText}>{year - 3}</Text>
-              <Text style={styles.listText}>{year - 4}</Text>
-            </View>
-            {monthLabels.map((_, index) => {
-              const y0 = +fiveYearsSums![0][index].toFixed(2);
-              const y1 = +fiveYearsSums![1][index].toFixed(2);
-              const y2 = +fiveYearsSums![2][index].toFixed(2);
-              const y3 = +fiveYearsSums![3][index].toFixed(2);
-              const y4 = +fiveYearsSums![4][index].toFixed(2);
-              const vals = [y0, y1, y2, y3, y4];
-              const nonZero = vals.filter(v => v !== 0);
-              return (
-                <View key={index} style={{ width: '100%', flexDirection: 'row', justifyContent: 'space-between' }}>
-                  <Text style={styles.listText}>{monthLabels[index]}</Text>
-                  <Text style={styles.listText}>{y0}</Text>
-                  <Text style={styles.listText}>{y1}</Text>
-                  <Text style={styles.listText}>{y2}</Text>
-                  <Text style={styles.listText}>{y3}</Text>
-                  <Text style={styles.listText}>{y4}</Text>
-                </View>
-              );
-            })}
-          </View>
-        )}
+            <Text style={styles.cardTitle}>
+              {yearlyCategory?.name ?? 'Kategoria'} {year}
+            </Text>
+          </Pressable>
 
-        <View style={{ width: '100%' }}>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryText}>Suma: {total ? total.toFixed(2) : 0} zł</Text>
-            <Text style={styles.summaryText}>Śr.: {avg ? avg.toFixed(2) : 0} zł</Text>
-          </View>
-          <View style={styles.summaryRow}>
-            {maxIdx >= 0 ? (
-              <Text style={styles.summaryText}>
-                Max: {monthLabels[maxIdx]} ({series[maxIdx] ? series[maxIdx].toFixed(2) : 0} zł)
-              </Text>
+          <View style={{ height: 300, justifyContent: 'space-between', alignItems: 'center' }}>
+            {!yearlyCategory ? (
+              <Text style={styles.loading}>Ładowanie…</Text>
+            ) : isCatEmpty ? (
+              <Text style={styles.loading}>Brak danych dla kategorii</Text>
+            ) : view === 'chart' ? (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} directionalLockEnabled nestedScrollEnabled>
+                <BarChart
+                  data={barData}
+                  onPress={(index: any) => onSetFocusedBarIdxHandler(index.month)}
+                  barWidth={16}
+                  spacing={16}
+                  noOfSections={4}
+                  frontColor={yearlyCategory.color}
+                  rulesColor='#2E2F36'
+                  xAxisLabelTextStyle={{ color: '#9aa' }}
+                  yAxisTextStyle={{ color: '#9aa' }}
+                  yAxisColor='transparent'
+                  xAxisColor='transparent'
+                  renderTooltip={(item: any, index: number) => {
+                    return (
+                      <View style={styles.tooltip}>
+                        <Text style={styles.tooltipText}>
+                          {item.label}: {Number(item.value).toFixed(2)} zł
+                        </Text>
+                      </View>
+                    );
+                  }}
+                />
+              </ScrollView>
             ) : (
-              <Text style={styles.summaryText}>Max: n/d</Text>
+              <View style={{ width: '100%' }}>
+                <View style={{ width: '100%', flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <Text style={styles.listText}></Text>
+                  <Text style={styles.listText}>{year}</Text>
+                  <Text style={styles.listText}>{year - 1}</Text>
+                  <Text style={styles.listText}>{year - 2}</Text>
+                  <Text style={styles.listText}>{year - 3}</Text>
+                  <Text style={styles.listText}>{year - 4}</Text>
+                </View>
+                {monthLabels.map((_, index) => {
+                  const y0 = +fiveYearsSums![0][index].toFixed(2);
+                  const y1 = +fiveYearsSums![1][index].toFixed(2);
+                  const y2 = +fiveYearsSums![2][index].toFixed(2);
+                  const y3 = +fiveYearsSums![3][index].toFixed(2);
+                  const y4 = +fiveYearsSums![4][index].toFixed(2);
+                  const vals = [y0, y1, y2, y3, y4];
+                  const nonZero = vals.filter(v => v !== 0);
+                  return (
+                    <View key={index} style={{ width: '100%', flexDirection: 'row', justifyContent: 'space-between' }}>
+                      <Text style={styles.listText}>{monthLabels[index]}</Text>
+                      <Text style={styles.listText}>{y0}</Text>
+                      <Text style={styles.listText}>{y1}</Text>
+                      <Text style={styles.listText}>{y2}</Text>
+                      <Text style={styles.listText}>{y3}</Text>
+                      <Text style={styles.listText}>{y4}</Text>
+                    </View>
+                  );
+                })}
+              </View>
             )}
 
-            {minNonZeroIdx >= 0 ? (
-              <Text style={styles.summaryText}>
-                Min: {monthLabels[minNonZeroIdx]} ({series[minNonZeroIdx] ? series[minNonZeroIdx].toFixed(2) : 0} zł)
-              </Text>
+            <View style={{ width: '100%' }}>
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryText}>Suma: {total ? total.toFixed(2) : 0} zł</Text>
+                <Text style={styles.summaryText}>Śr.: {avg ? avg.toFixed(2) : 0} zł</Text>
+              </View>
+              <View style={styles.summaryRow}>
+                {maxIdx >= 0 ? (
+                  <Text style={styles.summaryText}>
+                    Max: {monthLabels[maxIdx]} ({series[maxIdx] ? series[maxIdx].toFixed(2) : 0} zł)
+                  </Text>
+                ) : (
+                  <Text style={styles.summaryText}>Max: n/d</Text>
+                )}
+
+                {minNonZeroIdx >= 0 ? (
+                  <Text style={styles.summaryText}>
+                    Min: {monthLabels[minNonZeroIdx]} ({series[minNonZeroIdx] ? series[minNonZeroIdx].toFixed(2) : 0}{' '}
+                    zł)
+                  </Text>
+                ) : (
+                  <Text style={styles.summaryText}>Min: n/d</Text>
+                )}
+              </View>
+            </View>
+          </View>
+
+          {/* Pie bez interakcji */}
+          <Text style={styles.subHeaderTitle}>
+            Podział subkategorii {pieSourceMonth == null ? '(rok)' : `(miesiąc: ${monthLabels[pieSourceMonth]})`}
+          </Text>
+
+          <View style={styles.pieRow} pointerEvents='none'>
+            {pieSlices.total <= 0 ? (
+              <Text style={styles.loading}>Brak danych do podziału</Text>
             ) : (
-              <Text style={styles.summaryText}>Min: n/d</Text>
+              <>
+                <PieChart radius={80} data={pieSlices.slices as any} showText textSize={11} textColor='#fff' />
+                <View style={styles.pieLegend}>
+                  {pieSlices.legend.map(item => (
+                    <View key={item.id} style={{ marginVertical: 5 }}>
+                      <View style={styles.legendRow}>
+                        <View style={[styles.legendDot, { backgroundColor: item.color }]} />
+                        <Text numberOfLines={1} style={styles.legendText}>
+                          {item.name}
+                        </Text>
+                        <Text style={styles.legendPct}>{Math.round(item.pct)}%</Text>
+                      </View>
+                      <Text style={styles.legendVal}>{item.value.toFixed(2)} zł</Text>
+                    </View>
+                  ))}
+                </View>
+              </>
             )}
           </View>
-        </View>
-      </View>
 
-      {/* Pie bez interakcji */}
-      <Text style={styles.subHeaderTitle}>
-        Podział subkategorii {pieSourceMonth == null ? '(rok)' : `(miesiąc: ${monthLabels[pieSourceMonth]})`}
-      </Text>
-
-      <View style={styles.pieRow} pointerEvents='none'>
-        {pieSlices.total <= 0 ? (
-          <Text style={styles.loading}>Brak danych do podziału</Text>
-        ) : (
-          <>
-            <PieChart radius={80} data={pieSlices.slices as any} showText textSize={11} textColor='#fff' />
-            <View style={styles.pieLegend}>
-              {pieSlices.legend.map(item => (
-                <View key={item.id} style={{ marginVertical: 5 }}>
-                  <View style={styles.legendRow}>
-                    <View style={[styles.legendDot, { backgroundColor: item.color }]} />
-                    <Text numberOfLines={1} style={styles.legendText}>
-                      {item.name}
-                    </Text>
-                    <Text style={styles.legendPct}>{Math.round(item.pct)}%</Text>
-                  </View>
-                  <Text style={styles.legendVal}>{item.value.toFixed(2)} zł</Text>
-                </View>
-              ))}
-            </View>
-          </>
-        )}
-      </View>
-
-      <Text style={[styles.subHeaderTitle, { marginTop: 8 }]}>Subkategorie</Text>
+          <Text style={[styles.subHeaderTitle, { marginTop: 8 }]}>Subkategorie</Text>
+        </>
+      )}
     </View>
   );
 };

@@ -9,6 +9,7 @@ import colors from '../config/colors';
 import { RADIUS } from '../config/constants';
 import { getBalancesForMonth } from '../services/balancesService';
 import { CategoryYear } from '../components/home/CategoryYear';
+import { Moneyloader } from '../components/Moneyloader';
 
 export const HomeScreen = () => {
 
@@ -61,7 +62,6 @@ export const HomeScreen = () => {
         <Text style={styles.largeLabel}>{current.toLocaleDateString('pl-PL', { month: 'long', year: 'numeric' })}</Text>
         <Text style={styles.largeValue}>{saldoMonth.toFixed(2)} zł</Text>
       </View>
-
       <Limits year={year} month0={month0} />
       <Envelopes year={year} month1={month1} />
       <Charts year={year} month1={month1} />
