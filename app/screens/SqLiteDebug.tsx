@@ -36,33 +36,38 @@ export const SQLiteDebug: React.FC = () => {
   };
 
   const DEBUG = `
-    SELECT 
-      s.id   AS subcategoryId,
-      s.name AS name,
-      s.color AS color,
-      ai.name AS icon,
-      CAST(substr(e.date,6,2) AS INTEGER) AS month,
-      SUM(e.amount) AS sum
-    FROM entries e
-    JOIN subcategories s ON s.id = e.subcategoryId
-    JOIN categories c ON c.id = s.categoryId
-    LEFT JOIN app_icons ai ON ai.id = s.iconId
-    WHERE c.id = 7
-          AND c.positive = 0
-      AND substr(e.date,1,4) = "2025"
-      AND (e.depositEnvelopeId IS NULL)
-      AND e.financedEnvelopeId IS NULL
-    GROUP BY s.id, s.name, s.color, ai.name, month
-    ORDER BY s.name, month;
+WITH RECURSIVE months(m) AS (
+  SELECT 1
+  UNION ALL
+  SELECT m + 1 FROM months WHERE m < 12
+),
+sums AS (
+  SELECT CAST(strftime('%m', e.date) AS INTEGER) AS m,
+         SUM(e.amount) AS sum
+  FROM entries e
+  JOIN subcategories s ON s.id = e.subcategoryId
+  JOIN categories c   ON c.id = s.categoryId
+  WHERE c.id = 11                      -- id kategorii (np. 7)
+    AND c.positive = 0
+    AND e.isArchived = 0
+    AND e.financedEnvelopeId IS NULL
+    AND e.date >= '2025-01-01' AND e.date < '2026-01-01'    -- np. '2025-01-01', '2026-01-01'
+  GROUP BY m
+)
+SELECT
+  CASE
+    WHEN COALESCE(ma.income_total,0) = 0
+     AND COALESCE(ma.expense_total,0) = 0
+      THEN NULL
+    ELSE COALESCE(s.sum, 0)
+  END AS sum
+FROM months m12
+LEFT JOIN monthly_aggregates ma
+       ON ma.month = m12.m AND ma.year = 2025   -- np. 2025
+LEFT JOIN sums s
+       ON s.m = m12.m
+ORDER BY m12.m;
     `;
-
-  // const DEBUG = `
-  // SELECT c.id, c.name, c.color, i.name as icon
-  //   FROM categories c 
-  //   JOIN app_icons i ON c.iconId = i.id
-  //   WHERE c.id = 7
-  // `
-
 
   const runDebugQuery = async () => {
     const res = await db!.getAllAsync(DEBUG);

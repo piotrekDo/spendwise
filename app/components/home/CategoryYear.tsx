@@ -1,26 +1,25 @@
 // components/home/CategoryYear.tsx
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { BarChart } from 'react-native-gifted-charts';
 import colors from '../../config/colors';
 import { getMonthDateRange, monthLabels, RADIUS } from '../../config/constants';
-import { BarChart } from 'react-native-gifted-charts';
-import { getExpenseCategoriesLite, getCategoryYearSeries, CatMonthRow } from '../../services/statService';
-import { useNavigation } from '@react-navigation/native';
 import routes from '../../navigation/routes';
 import { getSelectedCategorySpendings } from '../../services/entriesService';
+import { getCategoryYearSeries, getExpenseCategoriesLite } from '../../services/statService';
 
 type Props = { year: number };
 
 export type CatLite = { id: number; name: string; color: string; icon: string };
 
-
 export const CategoryYear = ({ year }: Props) => {
   const navigation = useNavigation<any>();
 
   const [cats, setCats] = useState<CatLite[]>([]);
-  const [selectedCat, setSelectedCat] = useState<CatLite | null>(null);
-  const [series, setSeries] = useState<CatMonthRow[]>([]);
+  const [selectedCat, setSelectedCat] = useState<CatLite | null>(cats[0]);
+  const [series, setSeries] = useState<(number | null)[]>([]);
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -38,6 +37,7 @@ export const CategoryYear = ({ year }: Props) => {
       setLoading(true);
       try {
         const rows = await getCategoryYearSeries(year, selectedCat.id);
+        console.log(rows);
         setSeries(rows);
         setFocusedIndex(null);
       } finally {
@@ -46,26 +46,47 @@ export const CategoryYear = ({ year }: Props) => {
     })();
   }, [year, selectedCat]);
 
-  const total = useMemo(() => series.reduce((a, r) => a + r.sum, 0), [series]);
-  const avg = useMemo(() => (series.length ? total / series.length : 0), [series, total]);
+  const total = useMemo(() => series.filter((v): v is number => v != null).reduce((a, r) => a + r, 0), [series]);
+  const avg = useMemo(() => {
+    const nonNullSeries = series.filter(s => s !== null);
+    return nonNullSeries.length ? total / nonNullSeries.length : 0;
+  }, [series, total]);
 
-  const maxIdx = useMemo(
-    () => (series.length ? series.reduce((mi, r, i, arr) => (r.sum > arr[mi].sum ? i : mi), 0) : -1),
-    [series]
-  );
+  const maxIdx = useMemo(() => {
+    let idx = -1;
+    let max = -Infinity;
+
+    for (let i = 0; i < series.length; i++) {
+      const v = series[i];
+      if (v == null) continue; 
+      const n = typeof v === 'number' ? v : Number(v); 
+      if (!Number.isFinite(n)) continue; 
+      if (n > max) {
+        max = n;
+        idx = i;
+      }
+    }
+    return idx;
+  }, [series]);
 
   const minNonZeroIdx = useMemo(() => {
     if (!series.length) return -1;
+
     let idx = -1;
+    let min = Infinity;
+
     for (let i = 0; i < series.length; i++) {
-      const v = series[i].sum;
-      if (v > 0 && (idx === -1 || v < series[idx].sum)) idx = i;
+      const v = series[i];
+      if (v != null && v > 0 && v < min) {
+        min = v;
+        idx = i;
+      }
     }
     return idx;
   }, [series]);
 
   const barData = series.map((r, i) => ({
-    value: r.sum,
+    value: r || 0,
     label: monthLabels[i],
     month: i,
     onPress: () => setFocusedIndex(i),
@@ -82,15 +103,15 @@ export const CategoryYear = ({ year }: Props) => {
   };
 
   const handleOpenEntryDetailsModal = async (month0: number) => {
-        const { start, end } = getMonthDateRange(year, month0);
-        const entries = await getSelectedCategorySpendings(selectedCat?.id!, start, end);
-        navigation.navigate(routes.CATEGORY_DETAILS, {
-          data: entries,
-          displayName: selectedCat?.name,
-          displayIcon: selectedCat?.icon,
-          displayColor: selectedCat?.color
-        });
-  }
+    const { start, end } = getMonthDateRange(year, month0);
+    const entries = await getSelectedCategorySpendings(selectedCat?.id!, start, end);
+    navigation.navigate(routes.CATEGORY_DETAILS, {
+      data: entries,
+      displayName: selectedCat?.name,
+      displayIcon: selectedCat?.icon,
+      displayColor: selectedCat?.color,
+    });
+  };
 
   return (
     <View style={styles.card}>
@@ -110,11 +131,7 @@ export const CategoryYear = ({ year }: Props) => {
             <TouchableOpacity
               key={c.id}
               onPress={() => setSelectedCat(c)}
-              style={[
-                styles.chip,
-                { borderColor: c.color },
-                selected && { backgroundColor: c.color + '22' },
-              ]}
+              style={[styles.chip, { borderColor: c.color }, selected && { backgroundColor: c.color + '22' }]}
             >
               <MaterialCommunityIcons name={c.icon as any} size={20} color={c.color} />
             </TouchableOpacity>
@@ -140,7 +157,9 @@ export const CategoryYear = ({ year }: Props) => {
             yAxisTextStyle={{ color: '#9aa' }}
             yAxisColor='transparent'
             xAxisColor='transparent'
-            onLongPress={(item: any) => {handleOpenEntryDetailsModal(item.month)}}
+            onLongPress={(item: any) => {
+              handleOpenEntryDetailsModal(item.month);
+            }}
             renderTooltip={(item: any, index: number) => {
               if (index !== focusedIndex) return null;
               return (
@@ -155,16 +174,15 @@ export const CategoryYear = ({ year }: Props) => {
         )}
       </View>
 
-      {/* Mini podsumowanie */}
       <View style={styles.summaryRow}>
-        <Text style={styles.summaryText}>Suma: {total.toFixed(2)} zł</Text>
-        <Text style={styles.summaryText}>Śr.: {avg.toFixed(2)} zł</Text>
+        <Text style={styles.summaryText}>Suma: {total ? total.toFixed(2) : 0} zł</Text>
+        <Text style={styles.summaryText}>Śr.: {avg ? avg.toFixed(2) : 0} zł</Text>
       </View>
 
       <View style={styles.summaryRow}>
         {maxIdx >= 0 ? (
           <Text style={styles.summaryText}>
-            Max: {monthLabels[maxIdx]} ({series[maxIdx].sum.toFixed(2)} zł)
+            Max: {monthLabels[maxIdx]} ({series[maxIdx] ? series[maxIdx].toFixed(2) : 0} zł)
           </Text>
         ) : (
           <Text style={styles.summaryText}>Max: n/d</Text>
@@ -172,7 +190,7 @@ export const CategoryYear = ({ year }: Props) => {
 
         {minNonZeroIdx >= 0 ? (
           <Text style={styles.summaryText}>
-            Min: {monthLabels[minNonZeroIdx]} ({series[minNonZeroIdx].sum.toFixed(2)} zł)
+            Min: {monthLabels[minNonZeroIdx]} ({series[minNonZeroIdx] ? series[minNonZeroIdx].toFixed(2) : 0} zł)
           </Text>
         ) : (
           <Text style={styles.summaryText}>Min: n/d</Text>

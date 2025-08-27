@@ -47,7 +47,6 @@ export const CategoryEdit = ({
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     onDeleteSub(id);
-    console.log('delete ' + id);
   };
 
   const handleSwipeOpen = (id: number) => {

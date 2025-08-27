@@ -20,6 +20,7 @@ import routes from '../navigation/routes';
 import { getBalancesForMonth, getVaultBreakdown } from '../services/balancesService';
 import { getCategorySkeletonForSelectedmonth } from '../services/categoriesService';
 import { Entry, getSelectedCategorySpendings, getSpendingsInRange } from '../services/entriesService';
+import LottieView from 'lottie-react-native';
 
 const MONTHS = [
   'Styczeń',
@@ -273,6 +274,7 @@ export const BudgetScreen = () => {
             >
               <Text style={styles.smallLabel}>Bufor</Text>
               <Text style={styles.smallValue}>{saldoVault.toFixed(2)} zł</Text>
+              {/* <LottieView source={require('../../assets/Money.json')} autoPlay loop style={{ width: 160, height: 160 }} /> */}
             </Pressable>
 
             <View style={[styles.smallCard, styles.totalSmallCard, { alignItems: 'flex-end' }]}>
@@ -408,5 +410,5 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
   hintTextLeft: { transform: [{ rotate: '-90deg' }], left: 50 },
-  hintTextRight: {transform: [{ rotate: '90deg' }], right: 50},
+  hintTextRight: { transform: [{ rotate: '90deg' }], right: 50 },
 });

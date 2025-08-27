@@ -21,8 +21,6 @@ export const NewEntryModal = () => {
   const route = useRoute();
   const navigation = useNavigation<any>();
   const { monthOffset, subcategoryId } = route.params as RouteParams;
-  console.log('monthofset', monthOffset);
-  console.log('cat', subcategoryId);
 
   const today = new Date();
   const year = today.getFullYear();

@@ -24,11 +24,6 @@ export type YearMonthRow = {
   totalSavings: number; // cashSavings + deposits
 };
 
-export type CatMonthRow = {
-  month: number;
-  sum: number;
-};
-
 export type SubSeries = {
   subcategoryId: number;
   name: string;
@@ -45,7 +40,7 @@ export type CategoryWithSubYearly = {
   icon: keyof typeof MaterialCommunityIcons.glyphMap;
   sumsByMonth: number[];
   subcategories: SubCatYearly[];
-}
+};
 
 export type SubCatYearly = {
   subcategoryId: number;
@@ -53,12 +48,12 @@ export type SubCatYearly = {
   color: string;
   icon: keyof typeof MaterialCommunityIcons.glyphMap;
   sumsByMonth: number[];
-}
+};
 
 export type YearBucket = {
   year: number;
-  sumsByMonth: number[];           // 12 elementów
-  subcategories?: SubCatYearly[];  // opcjonalnie dla danego roku
+  sumsByMonth: number[]; // 12 elementów
+  subcategories?: SubCatYearly[]; // opcjonalnie dla danego roku
 };
 
 export type CategoryWithSubMulti = {
@@ -66,7 +61,7 @@ export type CategoryWithSubMulti = {
   name: string;
   color: string;
   icon: string;
-  years: YearBucket[];   // posortowane malejąco (2025, 2024, …)
+  years: YearBucket[]; // posortowane malejąco (2025, 2024, …)
 };
 
 export type SubcategoryMulti = {
@@ -77,53 +72,52 @@ export type SubcategoryMulti = {
   years: { year: number; sumsByMonth: number[] }[]; // 12 elem. w każdym
 };
 
+export function groupBySubcategory(category: CategoryWithSubMulti): SubcategoryMulti[] {
+  const yearOrder = category.years.map(y => y.year); // np. [2025, 2024, ...]
+  const bySub = new Map<number, SubcategoryMulti>();
 
- export function groupBySubcategory(category: CategoryWithSubMulti): SubcategoryMulti[] {
-    const yearOrder = category.years.map(y => y.year); // np. [2025, 2024, ...]
-    const bySub = new Map<number, SubcategoryMulti>();
-
-    // Zbierz wszystkie suby z definicji (z każdego roku), żeby mieć pełny zestaw
-    for (const y of category.years) {
-      const subs = y.subcategories ?? [];
-      for (const s of subs) {
-        if (!bySub.has(s.subcategoryId)) {
-          bySub.set(s.subcategoryId, {
-            subcategoryId: s.subcategoryId,
-            name: s.name,
-            color: s.color,
-            icon: s.icon,
-            years: [], // uzupełnimy niżej w pętli po yearOrder
-          });
-        } else {
-          // ewentualna aktualizacja nazwy/koloru gdyby zmieniły się między latami
-          const ref = bySub.get(s.subcategoryId)!;
-          ref.name = s.name;
-          ref.color = s.color;
-          ref.icon = s.icon;
-        }
-      }
-    }
-
-    // Jeżeli w jakimś roku nie było subów (np. all zero), bySub może być puste.
-    // W takim przypadku nic nie zrobimy — ale u Ciebie allYears już daje pełny zestaw subów.
-
-    // Dla każdego suba uzupełnij lata w zadanej kolejności
-    for (const sub of bySub.values()) {
-      for (const year of yearOrder) {
-        // spróbuj znaleźć sumsByMonth dla (sub, year)
-        const yBucket = category.years.find(y => y.year === year);
-        const match = yBucket?.subcategories?.find(s => s.subcategoryId === sub.subcategoryId);
-        sub.years.push({
-          year,
-          sumsByMonth: match ? match.sumsByMonth.slice() : EMPTY_12(),
+  // Zbierz wszystkie suby z definicji (z każdego roku), żeby mieć pełny zestaw
+  for (const y of category.years) {
+    const subs = y.subcategories ?? [];
+    for (const s of subs) {
+      if (!bySub.has(s.subcategoryId)) {
+        bySub.set(s.subcategoryId, {
+          subcategoryId: s.subcategoryId,
+          name: s.name,
+          color: s.color,
+          icon: s.icon,
+          years: [], // uzupełnimy niżej w pętli po yearOrder
         });
+      } else {
+        // ewentualna aktualizacja nazwy/koloru gdyby zmieniły się między latami
+        const ref = bySub.get(s.subcategoryId)!;
+        ref.name = s.name;
+        ref.color = s.color;
+        ref.icon = s.icon;
       }
     }
-
-    // posortuj suby po nazwie (opcjonalnie)
-    return Array.from(bySub.values())
-    // .sort((a, b) => a.name.localeCompare(b.name));
   }
+
+  // Jeżeli w jakimś roku nie było subów (np. all zero), bySub może być puste.
+  // W takim przypadku nic nie zrobimy — ale u Ciebie allYears już daje pełny zestaw subów.
+
+  // Dla każdego suba uzupełnij lata w zadanej kolejności
+  for (const sub of bySub.values()) {
+    for (const year of yearOrder) {
+      // spróbuj znaleźć sumsByMonth dla (sub, year)
+      const yBucket = category.years.find(y => y.year === year);
+      const match = yBucket?.subcategories?.find(s => s.subcategoryId === sub.subcategoryId);
+      sub.years.push({
+        year,
+        sumsByMonth: match ? match.sumsByMonth.slice() : EMPTY_12(),
+      });
+    }
+  }
+
+  // posortuj suby po nazwie (opcjonalnie)
+  return Array.from(bySub.values());
+  // .sort((a, b) => a.name.localeCompare(b.name));
+}
 
 export const getCategoryStatsLastNYears = async (
   catId: number,
@@ -134,7 +128,7 @@ export const getCategoryStatsLastNYears = async (
   const db = getDb();
   const startYear = untilYear - (n - 1);
   const start = toISO2(startYear, 1, 1);
-  const end   = toISO2(untilYear, 12, 31);
+  const end = toISO2(untilYear, 12, 31);
 
   // --- meta kategorii
   const category = await db.getFirstAsync(
@@ -147,7 +141,7 @@ export const getCategoryStatsLastNYears = async (
   if (!category) throw new Error(`Category ${catId} not found`);
 
   // --- sumy kategorii (bez depozytów do kopert i bez finansowanych)
-  const rows = await db.getAllAsync(
+  const rows = (await db.getAllAsync(
     `
     SELECT 
       CAST(strftime('%Y', e.date) AS INTEGER) AS y,
@@ -162,7 +156,7 @@ export const getCategoryStatsLastNYears = async (
     GROUP BY y, m
     `,
     [catId, start, end]
-  ) as Array<{ y:number; m:number; sum:number }>;
+  )) as Array<{ y: number; m: number; sum: number }>;
 
   // --- wiadra po 12 miesięcy na każdy rok
   const byYear = new Map<number, number[]>();
@@ -176,7 +170,7 @@ export const getCategoryStatsLastNYears = async (
   }
 
   const years: YearBucket[] = Array.from(byYear.entries())
-    .sort((a,b) => b[0] - a[0]) // malejąco: 2025, 2024, …
+    .sort((a, b) => b[0] - a[0]) // malejąco: 2025, 2024, …
     .map(([year, sumsByMonth]) => ({ year, sumsByMonth }));
 
   const model: CategoryWithSubMulti = {
@@ -190,7 +184,7 @@ export const getCategoryStatsLastNYears = async (
   // --- opcjonalne rozbicie na subkategorie
   if (withSubBreakdown === 'allYears') {
     // 1) pełna lista subkategorii tej kategorii
-    const allSubs = await db.getAllAsync(
+    const allSubs = (await db.getAllAsync(
       `
       SELECT s.id AS subcategoryId, s.name, s.color, ai.name AS icon
       FROM subcategories s
@@ -199,10 +193,10 @@ export const getCategoryStatsLastNYears = async (
       ORDER BY s.name
       `,
       [catId]
-    ) as Array<{ subcategoryId:number; name:string; color:string; icon:string|null }>;
+    )) as Array<{ subcategoryId: number; name: string; color: string; icon: string | null }>;
 
     // 2) sumy rzeczywiste z entries
-    const subs = await db.getAllAsync(
+    const subs = (await db.getAllAsync(
       `
       SELECT 
         s.id AS subcategoryId, s.name, s.color, ai.name AS icon,
@@ -219,9 +213,14 @@ export const getCategoryStatsLastNYears = async (
       GROUP BY s.id, y, m
       `,
       [catId, start, end]
-    ) as Array<{
-      subcategoryId:number; name:string; color:string; icon:string|null;
-      y:number; m:number; sum:number
+    )) as Array<{
+      subcategoryId: number;
+      name: string;
+      color: string;
+      icon: string | null;
+      y: number;
+      m: number;
+      sum: number;
     }>;
 
     // 3) y -> (subId -> SubCatYearly) zainicjalizowane zerami
@@ -261,7 +260,6 @@ export const getCategoryStatsLastNYears = async (
   return model;
 };
 
-
 export const getCategoryStatsByYear = async (catId: number, year: number): Promise<CategoryWithSubYearly> => {
   const db = getDb();
 
@@ -271,8 +269,7 @@ export const getCategoryStatsByYear = async (catId: number, year: number): Promi
   }
 
   // --- KATEGORIA: sumy 1..12
-  const catRows: { month: number; sum: number }[] =
-    await db.getAllAsync(categorySumsQuery, [catId, String(year)]);
+  const catRows: { month: number; sum: number }[] = await db.getAllAsync(categorySumsQuery, [catId, String(year)]);
 
   const catSums = Array(12).fill(0);
   for (const r of catRows) {
@@ -463,14 +460,17 @@ export const getExpenseCategoriesLite = async () => {
  *  Wyklucza: wpisy z depositEnvelopeId (depozyty), finansowane kopertą (financedEnvelopeId),
  *  oraz wpisy zarchiwizowane (isArchived=0 tylko).
  */
-export const getCategoryYearSeries = async (year: number, categoryId: number): Promise<CatMonthRow[]> => {
+export const getCategoryYearSeries = async (
+  year: number,
+  categoryId: number
+): Promise<(number | null)[]> => {
   const db = getDb();
-  // prosta „tabela” 1..12 bez generate_series
-  const rows = await db.getAllAsync(GET_CATEGORY_YEAR_SERIES, [categoryId, String(year)]);
-  return (rows as any[]).map(r => ({
-    month: Number(r.month),
-    sum: Number(r.sum ?? 0),
-  }));
+  const start = `${year}-01-01`;
+  const end   = `${year + 1}-01-01`;
+  const params = [categoryId, start, end, year];
+
+  const rows = await db.getAllAsync(GET_CATEGORY_YEAR_SERIES, params);
+  return rows.map((r: any) => (r.sum == null ? null : Number(r.sum)));
 };
 
 const mapToYearNow = (r: any): YearMonthRow => {
@@ -492,8 +492,7 @@ const mapToYearNow = (r: any): YearMonthRow => {
 const toISO = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
-const toISO2 = (y:number,m:number,d:number) =>
-  `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+const toISO2 = (y: number, m: number, d: number) => `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 
 const monthRangeISO = (year: number, month0: number) => {
   const start = new Date(year, month0, 1);
@@ -508,27 +507,37 @@ const GET_EXPENSE_CATEGORIES_LITE_QUERY = `SELECT c.id, c.name, c.color, ai.name
      ORDER BY c.isDefault ASC, c.name ASC`;
 
 const GET_CATEGORY_YEAR_SERIES = `
-    WITH months(m) AS (
-      SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6
-      UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9 UNION ALL SELECT 10 UNION ALL SELECT 11 UNION ALL SELECT 12
+    WITH RECURSIVE months(m) AS (
+      SELECT 1
+      UNION ALL
+      SELECT m + 1 FROM months WHERE m < 12
     ),
     sums AS (
       SELECT CAST(strftime('%m', e.date) AS INTEGER) AS m,
-             SUM(e.amount) AS sum
+            SUM(e.amount) AS sum
       FROM entries e
       JOIN subcategories s ON s.id = e.subcategoryId
-      JOIN categories c ON c.id = s.categoryId
-      WHERE c.id = ?
+      JOIN categories c   ON c.id = s.categoryId
+      WHERE c.id = ? 
         AND c.positive = 0
         AND e.isArchived = 0
         AND e.financedEnvelopeId IS NULL
-        AND strftime('%Y', e.date) = ?
+        AND e.date >= ? AND e.date < ? 
       GROUP BY m
     )
-    SELECT months.m AS month, COALESCE(sums.sum, 0) AS sum
-    FROM months
-    LEFT JOIN sums ON sums.m = months.m
-    ORDER BY months.m
+    SELECT
+      CASE
+        WHEN COALESCE(ma.income_total,0) = 0
+        AND COALESCE(ma.expense_total,0) = 0
+          THEN NULL
+        ELSE COALESCE(s.sum, 0)
+      END AS sum
+    FROM months m12
+    LEFT JOIN monthly_aggregates ma
+          ON ma.month = m12.m AND ma.year = ?
+    LEFT JOIN sums s
+          ON s.m = m12.m
+    ORDER BY m12.m;
     `;
 
 const MONTH_LIMITS_QUERY = `
@@ -603,7 +612,7 @@ const GET_YEAR_SUMMARY_QUERY = `WITH months(n) AS (
     ORDER BY m.n
     `;
 
-    const categoryQuery = `
+const categoryQuery = `
   SELECT c.id, c.name, c.color, ai.name AS icon
   FROM categories c
   LEFT JOIN app_icons ai ON ai.id = c.iconId
