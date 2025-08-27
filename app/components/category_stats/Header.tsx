@@ -8,26 +8,30 @@ import { CategoryWithSubMulti, CategoryWithSubYearly } from '../../services/stat
 import { Pressable, ScrollView } from 'react-native-gesture-handler';
 import { fullMonths, viewIcons, ViewType } from './SubcategoryStats';
 import { monthLabels } from '../../config/constants';
+import useMonthCategoryStats from '../../state/useMonthCategoryStats';
 
 interface Props {
   cats: CatLite[];
-  catId: number;
   yearlyCategory: CategoryWithSubMulti | undefined;
-  year: number;
   focusedBarIdxCat: number | null;
   setFocusedBarIdxCat: React.Dispatch<React.SetStateAction<number | null>>;
   setCatId: React.Dispatch<React.SetStateAction<number>>;
 }
 
-export const Header = ({
-  cats,
-  yearlyCategory,
-  year,
-  focusedBarIdxCat,
-  catId,
-  setCatId,
-  setFocusedBarIdxCat,
-}: Props) => {
+export const Header = ({ cats, yearlyCategory, focusedBarIdxCat, setFocusedBarIdxCat, setCatId }: Props) => {
+  const {
+    selectedCategory,
+    year,
+    setSelectedCategory,
+    setYear,
+    isDataloading,
+    series,
+    total,
+    avg,
+    maxIdx,
+    minNonZeroIdx,
+    barData,
+  } = useMonthCategoryStats();
   const [view, setView] = useState<ViewType>('chart');
 
   const categoryYearData = useMemo(() => {
@@ -81,11 +85,14 @@ export const Header = ({
         contentContainerStyle={{ paddingVertical: 5, marginTop: 20 }}
       >
         {cats.map(c => {
-          const selected = c.id === catId;
+          const selected = c.id === selectedCategory?.id;
           return (
             <TouchableOpacity
               key={c.id}
-              onPress={() => setCatId(c.id)}
+              onPress={() => {
+                setSelectedCategory(c);
+                setCatId(c.id);
+              }}
               hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
               style={[styles.chip, selected && { backgroundColor: c.color + '22', transform: [{ translateY: -4 }] }]}
             >
@@ -95,7 +102,6 @@ export const Header = ({
         })}
       </ScrollView>
 
-      {/* Tytuł */}
       <Pressable style={styles.cardHeader} onPress={handleHangeView}>
         <MaterialCommunityIcons
           name={viewIcons.get(view) as any}
@@ -108,8 +114,7 @@ export const Header = ({
         </Text>
       </Pressable>
 
-      {/* Słupki kategorii */}
-      <View style={{ height: 250, justifyContent: 'center', alignItems: 'center' }}>
+      <View style={{ height: 300, justifyContent: 'space-between', alignItems: 'center' }}>
         {!yearlyCategory ? (
           <Text style={styles.loading}>Ładowanie…</Text>
         ) : isCatEmpty ? (
@@ -117,7 +122,7 @@ export const Header = ({
         ) : view === 'chart' ? (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} directionalLockEnabled nestedScrollEnabled>
             <BarChart
-              data={categoryYearData}
+              data={barData}
               barWidth={16}
               spacing={16}
               noOfSections={4}
@@ -139,7 +144,7 @@ export const Header = ({
             />
           </ScrollView>
         ) : (
-          <View style={{ flex: 1, width: '100%' }}>
+          <View style={{ width: '100%' }}>
             <View style={{ width: '100%', flexDirection: 'row', justifyContent: 'space-between' }}>
               <Text style={styles.listText}></Text>
               <Text style={styles.listText}>{year}</Text>
@@ -147,7 +152,6 @@ export const Header = ({
               <Text style={styles.listText}>{year - 2}</Text>
               <Text style={styles.listText}>{year - 3}</Text>
               <Text style={styles.listText}>{year - 4}</Text>
-              {/* <Text style={styles.listText}>Avg.</Text> */}
             </View>
             {monthLabels.map((_, index) => {
               const y0 = +fiveYearsSums![0][index].toFixed(2);
@@ -157,7 +161,6 @@ export const Header = ({
               const y4 = +fiveYearsSums![4][index].toFixed(2);
               const vals = [y0, y1, y2, y3, y4];
               const nonZero = vals.filter(v => v !== 0);
-              // const avg = nonZero.length ? nonZero.reduce((a, b) => a + b, 0) / nonZero.length : 0;
               return (
                 <View key={index} style={{ width: '100%', flexDirection: 'row', justifyContent: 'space-between' }}>
                   <Text style={styles.listText}>{monthLabels[index]}</Text>
@@ -166,12 +169,35 @@ export const Header = ({
                   <Text style={styles.listText}>{y2}</Text>
                   <Text style={styles.listText}>{y3}</Text>
                   <Text style={styles.listText}>{y4}</Text>
-                  {/* <Text style={styles.listText}>{avg}</Text> */}
                 </View>
               );
             })}
           </View>
         )}
+
+        <View style={{ width: '100%' }}>
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryText}>Suma: {total ? total.toFixed(2) : 0} zł</Text>
+            <Text style={styles.summaryText}>Śr.: {avg ? avg.toFixed(2) : 0} zł</Text>
+          </View>
+          <View style={styles.summaryRow}>
+            {maxIdx >= 0 ? (
+              <Text style={styles.summaryText}>
+                Max: {monthLabels[maxIdx]} ({series[maxIdx] ? series[maxIdx].toFixed(2) : 0} zł)
+              </Text>
+            ) : (
+              <Text style={styles.summaryText}>Max: n/d</Text>
+            )}
+
+            {minNonZeroIdx >= 0 ? (
+              <Text style={styles.summaryText}>
+                Min: {monthLabels[minNonZeroIdx]} ({series[minNonZeroIdx] ? series[minNonZeroIdx].toFixed(2) : 0} zł)
+              </Text>
+            ) : (
+              <Text style={styles.summaryText}>Min: n/d</Text>
+            )}
+          </View>
+        </View>
       </View>
 
       {/* Pie bez interakcji */}
@@ -222,12 +248,19 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
     alignItems: 'center',
     marginTop: 20,
-    marginBottom: 6,
+    marginBottom: 20,
     paddingVertical: 6,
   },
   cardTitle: { color: colors.white, fontSize: 16, fontWeight: '700' },
   loading: { color: '#9aa', textAlign: 'center', paddingVertical: 12, fontSize: 14, fontWeight: '600' },
-  subHeaderTitle: { color: colors.white, opacity: 0.9, fontWeight: '700', marginTop: 8, marginBottom: 6 },
+  subHeaderTitle: {
+    color: colors.white,
+    opacity: 0.9,
+    fontSize: 18,
+    fontWeight: '700',
+    marginTop: 28,
+    marginBottom: 6,
+  },
   pieRow: { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 6 },
   pieLegend: { flex: 1, paddingLeft: 8 },
   legendRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
@@ -247,4 +280,6 @@ const styles = StyleSheet.create({
   },
   tooltipText: { color: '#fff', fontSize: 12 },
   listText: { flex: 1, color: '#fff', fontSize: 12 },
+  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
+  summaryText: { color: colors.white, opacity: 0.85, fontSize: 12 },
 });

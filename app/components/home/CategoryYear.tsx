@@ -1,14 +1,15 @@
-// components/home/CategoryYear.tsx
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import React, { useEffect, useMemo, useState } from 'react';
+import LottieView from 'lottie-react-native';
+import React, { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { BarChart } from 'react-native-gifted-charts';
 import colors from '../../config/colors';
 import { getMonthDateRange, monthLabels, RADIUS } from '../../config/constants';
 import routes from '../../navigation/routes';
 import { getSelectedCategorySpendings } from '../../services/entriesService';
-import { getCategoryYearSeries, getExpenseCategoriesLite } from '../../services/statService';
+import { getExpenseCategoriesLite } from '../../services/statService';
+import useMonthCategoryStats from '../../state/useMonthCategoryStats';
 
 type Props = { year: number };
 
@@ -18,98 +19,39 @@ export const CategoryYear = ({ year }: Props) => {
   const navigation = useNavigation<any>();
 
   const [cats, setCats] = useState<CatLite[]>([]);
-  const [selectedCat, setSelectedCat] = useState<CatLite | null>(cats[0]);
-  const [series, setSeries] = useState<(number | null)[]>([]);
-  const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
-  const [loading, setLoading] = useState(false);
+  const { selectedCategory, setSelectedCategory, setYear, isDataloading, series, total, avg, maxIdx, minNonZeroIdx, barData } =
+    useMonthCategoryStats();
 
   useEffect(() => {
     (async () => {
       const list = await getExpenseCategoriesLite();
       setCats(list);
-      if (list.length && selectedCat?.id === null) setSelectedCat(list[0]);
+      if (list.length && selectedCategory?.id === null) setSelectedCategory(list[0]);
     })();
   }, []);
 
   useEffect(() => {
-    if (!selectedCat) return;
-    (async () => {
-      setLoading(true);
-      try {
-        const rows = await getCategoryYearSeries(year, selectedCat.id);
-        console.log(rows);
-        setSeries(rows);
-        setFocusedIndex(null);
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [year, selectedCat]);
+    setYear(year);
+  }, [year]);
 
-  const total = useMemo(() => series.filter((v): v is number => v != null).reduce((a, r) => a + r, 0), [series]);
-  const avg = useMemo(() => {
-    const nonNullSeries = series.filter(s => s !== null);
-    return nonNullSeries.length ? total / nonNullSeries.length : 0;
-  }, [series, total]);
-
-  const maxIdx = useMemo(() => {
-    let idx = -1;
-    let max = -Infinity;
-
-    for (let i = 0; i < series.length; i++) {
-      const v = series[i];
-      if (v == null) continue; 
-      const n = typeof v === 'number' ? v : Number(v); 
-      if (!Number.isFinite(n)) continue; 
-      if (n > max) {
-        max = n;
-        idx = i;
-      }
-    }
-    return idx;
-  }, [series]);
-
-  const minNonZeroIdx = useMemo(() => {
-    if (!series.length) return -1;
-
-    let idx = -1;
-    let min = Infinity;
-
-    for (let i = 0; i < series.length; i++) {
-      const v = series[i];
-      if (v != null && v > 0 && v < min) {
-        min = v;
-        idx = i;
-      }
-    }
-    return idx;
-  }, [series]);
-
-  const barData = series.map((r, i) => ({
-    value: r || 0,
-    label: monthLabels[i],
-    month: i,
-    onPress: () => setFocusedIndex(i),
-  }));
-
-  const isEmpty = barData.every(b => b.value === 0);
-  const active = cats.find(c => c.id === selectedCat?.id);
+  const isEmpty = barData && barData.every(b => b.value === 0);
+  const active = cats.find(c => c.id === selectedCategory?.id);
 
   const navigateToStats = () => {
     navigation.navigate(routes.CATEGORIES_STATS, {
       cats: cats,
-      selectedCategoryId: selectedCat?.id,
+      selectedCategoryId: selectedCategory?.id,
     });
   };
 
   const handleOpenEntryDetailsModal = async (month0: number) => {
     const { start, end } = getMonthDateRange(year, month0);
-    const entries = await getSelectedCategorySpendings(selectedCat?.id!, start, end);
+    const entries = await getSelectedCategorySpendings(selectedCategory?.id!, start, end);
     navigation.navigate(routes.CATEGORY_DETAILS, {
       data: entries,
-      displayName: selectedCat?.name,
-      displayIcon: selectedCat?.icon,
-      displayColor: selectedCat?.color,
+      displayName: selectedCategory?.name,
+      displayIcon: selectedCategory?.icon,
+      displayColor: selectedCategory?.color,
     });
   };
 
@@ -126,11 +68,11 @@ export const CategoryYear = ({ year }: Props) => {
         contentContainerStyle={{ paddingVertical: 4, paddingHorizontal: 8 }}
       >
         {cats.map((c, idx) => {
-          const selected = c.id === selectedCat?.id;
+          const selected = c.id === selectedCategory?.id;
           return (
             <TouchableOpacity
               key={c.id}
-              onPress={() => setSelectedCat(c)}
+              onPress={() => setSelectedCategory(c)}
               style={[styles.chip, { borderColor: c.color }, selected && { backgroundColor: c.color + '22' }]}
             >
               <MaterialCommunityIcons name={c.icon as any} size={20} color={c.color} />
@@ -139,10 +81,17 @@ export const CategoryYear = ({ year }: Props) => {
         })}
       </ScrollView>
 
-      {/* Wykres */}
       <View style={{ height: 250, justifyContent: 'center', alignItems: 'center' }}>
-        {loading ? (
-          <Text style={styles.loading}>Ładowanie…</Text>
+        {isDataloading ? (
+          <LottieView
+            style={{
+              width: 200,
+              height: 200,
+            }}
+            autoPlay
+            loop
+            source={require('../../../assets/Money.json')}
+          />
         ) : isEmpty ? (
           <Text style={styles.loading}>Brak danych dla tej kategorii</Text>
         ) : (
@@ -161,7 +110,6 @@ export const CategoryYear = ({ year }: Props) => {
               handleOpenEntryDetailsModal(item.month);
             }}
             renderTooltip={(item: any, index: number) => {
-              if (index !== focusedIndex) return null;
               return (
                 <View style={styles.tooltip}>
                   <Text style={styles.tooltipText}>

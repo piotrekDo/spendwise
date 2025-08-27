@@ -86,9 +86,7 @@ export const CategoriesStats = () => {
         ListHeaderComponent={
           <Header
             cats={cats}
-            catId={catId}
             yearlyCategory={yearlyCategory}
-            year={year}
             focusedBarIdxCat={focusedBarIdxCat}
             setCatId={setCatId}
             setFocusedBarIdxCat={setFocusedBarIdxCat}
