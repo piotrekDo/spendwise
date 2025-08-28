@@ -54,12 +54,12 @@ export const CategoriesStats = () => {
       // debugLog(data, 'Stats');
       setLocal({ isNYearsLoading: false });
       if (!alive) return;
-        setLocal({
-          isNYearsLoading: false,
-          yearlyCategory: data,
-          focusedBarIdxCat: null,
-          groupedSubcategories: groupBySubcategory(data),
-        });
+      setLocal({
+        isNYearsLoading: false,
+        yearlyCategory: data,
+        focusedBarIdxCat: null,
+        groupedSubcategories: groupBySubcategory(data),
+      });
     })();
     return () => {
       alive = false;
@@ -87,7 +87,7 @@ export const CategoriesStats = () => {
   return (
     <BottomSheetModal
       ref={sheetRef}
-      snapPoints={['92%']}
+      snapPoints={['100%']}
       index={0}
       enableOverDrag={false}
       enablePanDownToClose
@@ -99,7 +99,7 @@ export const CategoriesStats = () => {
       keyboardBehavior='interactive'
       keyboardBlurBehavior='restore'
     >
-
+      <View style={{height: '100%'}}>
         <BottomSheetFlatList
           contentContainerStyle={{ paddingBottom: 16, paddingHorizontal: 16 }}
           bounces
@@ -111,13 +111,16 @@ export const CategoriesStats = () => {
               yearlyCategory={local.yearlyCategory}
               focusedBarIdxCat={local.focusedBarIdxCat}
               setFocusedBarIdxCat={(i: number | null) => setLocal({ focusedBarIdxCat: i })}
-              isLoading={isUiLoading} 
+              isLoading={isUiLoading}
             />
           }
           ListFooterComponent={<View style={{ height: 12 }} />}
           ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
-          renderItem={({ item }) => <SubcategoryStats sub={item} sheetRef={sheetRef} year={year} isLoading={isUiLoading} />}
+          renderItem={({ item }) => (
+            <SubcategoryStats sub={item} sheetRef={sheetRef} year={year} isLoading={isUiLoading} />
+          )}
         />
+      </View>
     </BottomSheetModal>
   );
 };

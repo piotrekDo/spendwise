@@ -55,7 +55,6 @@ export const CategoryEdit = ({
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }, 80);
     onDeleteSub(id);
-    console.log('delete ' + id);
   };
 
   const handleSwipeWillOpen = () => {

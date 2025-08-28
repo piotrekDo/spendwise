@@ -10,15 +10,17 @@ import { EnvelopeEdit } from '../screens/modals/EnvelopeEdit';
 import { CategoriesStats } from '../screens/modals/CategoriesStats';
 import { CategoryDetailsModal } from '../screens/modals/CategoryDetailsModal';
 import { NewEntryModal } from '../screens/modals/NewEntryModal';
+import { Vault } from '../screens/modals/Vault';
 
 export type RootStackParamList = {
   Main: undefined;
+  ModalVault: undefined;
   NewEntryModal: undefined;
   SubCategoryEditScreen: { sub?: any; expandedCategory: number } | undefined;
   CategoryEditScreen: { cat?: any } | undefined;
-  EnvelopesHome: {month1: number, year: number} | undefined;
+  EnvelopesHome: { month1: number; year: number } | undefined;
   EnvelopeDetails: { envelopeId: number; year: number; month1: number } | undefined;
-  EnvelopeEdit: { envelopeId:number; initialName?:string; initialColor?:string } | undefined;
+  EnvelopeEdit: { envelopeId: number; initialName?: string; initialColor?: string } | undefined;
   CategoryDetails: undefined;
   CategoriesStats: undefined;
 };
@@ -32,7 +34,7 @@ export const RootNavigator = () => {
         headerShown: false,
       }}
     >
-      <Stack.Screen name="Main" component={TabsNavigator} />
+      <Stack.Screen name='Main' component={TabsNavigator} />
 
       <Stack.Screen
         name={routes.NEW_ENTRY_MODAL}
@@ -89,23 +91,33 @@ export const RootNavigator = () => {
         }}
       />
       <Stack.Screen
+        name={routes.MODAL_VAULT}
+        component={Vault}
+        options={{
+          presentation: 'transparentModal',
+          contentStyle: { backgroundColor: 'transparent' },
+          animation: 'slide_from_bottom',
+          animationDuration: 5,
+        }}
+      />
+      <Stack.Screen
         name={routes.CATEGORIES_STATS}
         component={CategoriesStats}
         options={{
           presentation: 'transparentModal',
           contentStyle: { backgroundColor: 'transparent' },
           animation: 'slide_from_bottom',
-          animationDuration: 5
+          animationDuration: 5,
         }}
       />
       <Stack.Screen
         name={routes.CATEGORY_DETAILS}
         component={CategoryDetailsModal}
         options={{
-          presentation: 'transparentModal',
+          presentation: 'containedTransparentModal',
           contentStyle: { backgroundColor: 'transparent' },
           animation: 'slide_from_bottom',
-          animationDuration: 5
+          animationDuration: 5,
         }}
       />
     </Stack.Navigator>

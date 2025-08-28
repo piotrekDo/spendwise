@@ -1,4 +1,4 @@
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import Constants from 'expo-constants';
 import React, { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -6,13 +6,14 @@ import { Charts } from '../components/home/Charts';
 import { Envelopes } from '../components/home/Envelopes';
 import { Limits } from '../components/home/Limits';
 import colors from '../config/colors';
-import { RADIUS } from '../config/constants';
+import { debugLog, RADIUS } from '../config/constants';
 import { getBalancesForMonth } from '../services/balancesService';
 import { CategoryYear } from '../components/home/CategoryYear';
-import { Moneyloader } from '../components/Moneyloader';
+import routes from '../navigation/routes';
+import { getLast12Months } from '../services/vaultService';
 
 export const HomeScreen = () => {
-
+  const navigation = useNavigation<any>();
   const [monthOffset, setMonthOffset] = useState(0);
 
   const [saldoMonth, setSaldoMonth] = useState(0);
@@ -39,34 +40,41 @@ export const HomeScreen = () => {
     }, [year, month1])
   );
 
-  return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: colors.background }}
-      contentContainerStyle={{ padding: 10, paddingTop: Constants.statusBarHeight, gap: 10 }}
-    >
-      {/* Górne kafelki */}
-      <View style={styles.headerBar}>
-        <Pressable onPress={() => {}} style={[styles.smallCard, styles.vaultSmallCard]}>
-          <Text style={styles.smallLabel}>Bufor</Text>
-          <Text style={styles.smallValue}>{saldoVault.toFixed(2)} zł</Text>
-        </Pressable>
+ return (
+    <>
+      <ScrollView
+        style={{ flex: 1, backgroundColor: colors.background }}
+        contentContainerStyle={{ padding: 10, paddingTop: Constants.statusBarHeight, gap: 10 }}
+      >
+        <View style={styles.headerBar}>
+          <Pressable
+            onPress={() => {
+              navigation.navigate(routes.MODAL_VAULT, {});
+            }}
+            style={[styles.smallCard, styles.vaultSmallCard]}
+          >
+            <Text style={styles.smallLabel}>Bufor</Text>
+            <Text style={styles.smallValue}>{saldoVault.toFixed(2)} zł</Text>
+          </Pressable>
 
-        <View style={[styles.smallCard, styles.totalSmallCard, { alignItems: 'flex-end' }]}>
-          <Text style={styles.smallLabel}>Całość</Text>
-          <Text style={styles.smallValue}>{saldoTotal.toFixed(2)} zł</Text>
+          <View style={[styles.smallCard, styles.totalSmallCard, { alignItems: 'flex-end' }]}>
+            <Text style={styles.smallLabel}>Całość</Text>
+            <Text style={styles.smallValue}>{saldoTotal.toFixed(2)} zł</Text>
+          </View>
         </View>
-      </View>
 
-      {/* Miesiąc (Total) */}
-      <View style={styles.largeMonthCard}>
-        <Text style={styles.largeLabel}>{current.toLocaleDateString('pl-PL', { month: 'long', year: 'numeric' })}</Text>
-        <Text style={styles.largeValue}>{saldoMonth.toFixed(2)} zł</Text>
-      </View>
-      <Limits year={year} month0={month0} />
-      <Envelopes year={year} month1={month1} />
-      <Charts year={year} month1={month1} />
-      <CategoryYear year={year} />
-    </ScrollView>
+        <View style={styles.largeMonthCard}>
+          <Text style={styles.largeLabel}>
+            {current.toLocaleDateString('pl-PL', { month: 'long', year: 'numeric' })}
+          </Text>
+          <Text style={styles.largeValue}>{saldoMonth.toFixed(2)} zł</Text>
+        </View>
+        <Limits year={year} month0={month0} />
+        <Envelopes year={year} month1={month1} />
+        <Charts year={year} month1={month1} />
+        <CategoryYear year={year} />
+      </ScrollView>
+    </>
   );
 };
 

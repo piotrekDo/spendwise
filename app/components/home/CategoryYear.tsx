@@ -26,6 +26,7 @@ export const CategoryYear = ({ year }: Props) => {
     (async () => {
       const list = await getExpenseCategoriesLite();
       setCats(list);
+      setSelectedCategory(list[0])
       if (list.length && selectedCategory?.id === null) setSelectedCategory(list[0]);
     })();
   }, []);

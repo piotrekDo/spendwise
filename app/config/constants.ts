@@ -77,6 +77,21 @@ export const monthColors: Record<number, string> = {
   11: 'rgba(160,200,255,0.18)',
 };
 
+export const monthColorsText: Record<number, string> = {
+  0: 'rgba(120,180,255, .7)',
+  1: 'rgba(120,180,255, .7)',
+  2: 'rgba(130,220,150, .7)',
+  3: 'rgba(120,200,255, .7)',
+  4: 'rgba(140,230,170, .7)',
+  5: 'rgba(255,220,120, .7)',
+  6: 'rgba(255,210,120, .7)',
+  7: 'rgba(255,200,120, .7)',
+  8: 'rgba(255,170,120, .7)',
+  9: 'rgba(255,150,120, .7)',
+  10: 'rgba(200,200,200, .7)',
+  11: 'rgba(160,200,255, .7)',
+};
+
 export function debugLog(obj: any, label: any) {
   try {
     const str = JSON.stringify(obj, null, 2);

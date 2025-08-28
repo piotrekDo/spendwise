@@ -504,7 +504,7 @@ const GET_EXPENSE_CATEGORIES_LITE_QUERY = `SELECT c.id, c.name, c.color, ai.name
      FROM categories c
      LEFT JOIN app_icons ai ON ai.id = c.iconId
      WHERE c.positive = 0
-     ORDER BY c.isDefault ASC, c.name ASC`;
+     ORDER BY c.isDefault ASC, c.id ASC`;
 
 const GET_CATEGORY_YEAR_SERIES = `
     WITH RECURSIVE months(m) AS (

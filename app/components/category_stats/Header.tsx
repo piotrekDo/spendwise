@@ -238,6 +238,7 @@ export const Header = ({ cats, yearlyCategory, focusedBarIdxCat, isLoading, setF
 
 const styles = StyleSheet.create({
   chip: {
+    height: 35,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,

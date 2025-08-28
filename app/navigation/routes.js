@@ -6,6 +6,7 @@ export default Object.freeze({
   ACCOUNT: 'account',
   ACCOUNT_SCREEN: 'account_screen',
   ACCOUNT_EDIT_SCHEME: 'account_editscheme',
+  MODAL_VAULT: 'ModalVault',
   MODAL_CATEGORY_EDIT: 'CategoryEditScreen',
   MODAL_SUBCATEGORY_EDIT: 'SubCategoryEditScreen',
   MODAL_ENVELOPES_HOME: 'EnvelopesHome',

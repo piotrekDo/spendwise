@@ -36,37 +36,28 @@ export const SQLiteDebug: React.FC = () => {
   };
 
   const DEBUG = `
-WITH RECURSIVE months(m) AS (
-  SELECT 1
+WITH RECURSIVE months(i, y, m) AS (
+  SELECT 0, 2025, 8          -- start: np. 2025, 8
   UNION ALL
-  SELECT m + 1 FROM months WHERE m < 12
-),
-sums AS (
-  SELECT CAST(strftime('%m', e.date) AS INTEGER) AS m,
-         SUM(e.amount) AS sum
-  FROM entries e
-  JOIN subcategories s ON s.id = e.subcategoryId
-  JOIN categories c   ON c.id = s.categoryId
-  WHERE c.id = 11                      -- id kategorii (np. 7)
-    AND c.positive = 0
-    AND e.isArchived = 0
-    AND e.financedEnvelopeId IS NULL
-    AND e.date >= '2025-01-01' AND e.date < '2026-01-01'    -- np. '2025-01-01', '2026-01-01'
-  GROUP BY m
+  SELECT i+1,
+         CASE WHEN m=1 THEN y-1 ELSE y END,
+         CASE WHEN m=1 THEN 12  ELSE m-1 END
+  FROM months
+  WHERE i < 11                      -- łącznie 12 pozycji
 )
 SELECT
-  CASE
-    WHEN COALESCE(ma.income_total,0) = 0
-     AND COALESCE(ma.expense_total,0) = 0
-      THEN NULL
-    ELSE COALESCE(s.sum, 0)
-  END AS sum
-FROM months m12
-LEFT JOIN monthly_aggregates ma
-       ON ma.month = m12.m AND ma.year = 2025   -- np. 2025
-LEFT JOIN sums s
-       ON s.m = m12.m
-ORDER BY m12.m;
+  y   AS year,
+  m   AS month,
+  COALESCE(a.income_total,        0) AS income_total,
+  COALESCE(a.expense_total,       0) AS expense_total,
+  COALESCE(a.fund_in_total,       0) AS fund_in_total,
+  COALESCE(a.fund_out_total,      0) AS fund_out_total,
+  COALESCE(a.covered_from_buffer, 0) AS covered_from_buffer
+FROM months
+LEFT JOIN monthly_aggregates a
+  ON a.year = y AND a.month = m
+ORDER BY (y * 12 + m) DESC;
+
     `;
 
   const runDebugQuery = async () => {
