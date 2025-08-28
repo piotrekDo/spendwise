@@ -10,7 +10,6 @@ import { debugLog, RADIUS } from '../config/constants';
 import { getBalancesForMonth } from '../services/balancesService';
 import { CategoryYear } from '../components/home/CategoryYear';
 import routes from '../navigation/routes';
-import { getLast12Months } from '../services/vaultService';
 
 export const HomeScreen = () => {
   const navigation = useNavigation<any>();
@@ -49,7 +48,7 @@ export const HomeScreen = () => {
         <View style={styles.headerBar}>
           <Pressable
             onPress={() => {
-              navigation.navigate(routes.MODAL_VAULT, {});
+              navigation.navigate(routes.MODAL_VAULT, {year, month1});
             }}
             style={[styles.smallCard, styles.vaultSmallCard]}
           >

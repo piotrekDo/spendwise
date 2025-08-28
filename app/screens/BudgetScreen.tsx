@@ -20,7 +20,6 @@ import routes from '../navigation/routes';
 import { getBalancesForMonth, getVaultBreakdown } from '../services/balancesService';
 import { getCategorySkeletonForSelectedmonth } from '../services/categoriesService';
 import { Entry, getSelectedCategorySpendings, getSpendingsInRange } from '../services/entriesService';
-import LottieView from 'lottie-react-native';
 
 const MONTHS = [
   'Styczeń',
@@ -52,7 +51,6 @@ export const BudgetScreen = () => {
   const [saldoMonth, setSaldoMonth] = useState(0);
   const [saldoVault, setSaldoVault] = useState(0);
   const [saldoTotal, setSaldoTotal] = useState(0);
-  const [vaultOpen, setVaultOpen] = useState(false);
   const [vaultItems, setVaultItems] = useState<Array<{ label: string; balance: number }>>([]);
   const [hintsOn, setHintsOn] = useState(false);
 
@@ -67,11 +65,6 @@ export const BudgetScreen = () => {
     setSaldoMonth(month);
     setSaldoVault(vault);
     setSaldoTotal(total);
-  };
-
-  const loadVaultBreakdown = async () => {
-    const items = await getVaultBreakdown(year, month1, 12);
-    setVaultItems(items.map(i => ({ label: i.label, balance: i.balance })));
   };
 
   const loadData = async () => {
@@ -106,7 +99,6 @@ export const BudgetScreen = () => {
     React.useCallback(() => {
       getCategorySkeletonForSelectedmonth(year, month1).then(setSkeleton);
       loadBalances();
-      setVaultOpen(false);
     }, [year, month1])
   );
 
@@ -265,10 +257,8 @@ export const BudgetScreen = () => {
 
           <View style={styles.headerBar}>
             <Pressable
-              onPress={async () => {
-                const willOpen = !vaultOpen;
-                setVaultOpen(willOpen);
-                if (willOpen) await loadVaultBreakdown();
+              onPress={() => {
+                navigation.navigate(routes.MODAL_VAULT, {year, month1});
               }}
               style={[styles.smallCard, styles.vaultSmallCard]}
             >
@@ -282,19 +272,6 @@ export const BudgetScreen = () => {
               <Text style={styles.smallValue}>{saldoTotal.toFixed(2)} zł</Text>
             </View>
           </View>
-
-          {vaultOpen && (
-            <View style={styles.vaultDetails}>
-              {vaultItems.map((it, idx) => (
-                <View key={`${it.label}-${idx}`} style={styles.vaultItem}>
-                  <Text style={styles.vaultItemLabel}>{it.label}</Text>
-                  <Text style={[styles.vaultItemValue, { color: it.balance >= 0 ? '#9EE493' : '#FF7B7B' }]}>
-                    {it.balance.toFixed(2)} zł
-                  </Text>
-                </View>
-              ))}
-            </View>
-          )}
 
           {/* Miesiąc */}
           <View style={styles.largeMonthCard}>
