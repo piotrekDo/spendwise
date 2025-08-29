@@ -4,6 +4,7 @@ export default Object.freeze({
   ARCHIVE: 'archive',
   DEBUG: 'sqldebug',
   ACCOUNT: 'account',
+  ENVELOPES: 'envelopes',
   ACCOUNT_SCREEN: 'account_screen',
   ACCOUNT_EDIT_SCHEME: 'account_editscheme',
   MODAL_VAULT: 'ModalVault',

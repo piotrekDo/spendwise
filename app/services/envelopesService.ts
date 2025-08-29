@@ -142,6 +142,32 @@ export const depositToEnvelope = async (
   }
 };
 
+export const getAllEnvelopes = async () => {
+  const db = getDb();
+  const rows = (await db.getAllAsync(
+    `SELECT *
+      FROM envelopes
+      ORDER BY
+        CASE
+          WHEN finished IS NULL AND closed IS NULL THEN 0   -- aktywne
+          WHEN finished IS NOT NULL THEN 1                  -- ukończone
+        ELSE 2                                            -- zamknięte
+        END ASC,
+          id DESC`
+  )) as any[];
+  return rows.map(r => ({
+    id: r.id,
+    name: r.name,
+    color: r.color,
+    target: r.target ?? null,
+    saldo: r.saldo ?? 0,
+    finished: r.finished ?? null,
+    closed: r.closed ?? null,
+    iconId: r.iconId ?? null,
+    entryId: r.entryId ?? null,
+  }));
+};
+
 export const getActiveEnvelopes = async (): Promise<Envelope[]> => {
   const db = getDb();
   const rows = (await db.getAllAsync(
@@ -334,7 +360,6 @@ export const deleteEnvelope = async (
   }
 };
 
-
 /**
  * Finansuje WYDATEK z koperty.
  * - Tworzy wpis zakupu z financedEnvelopeId = envelopeId (NIE dotyka monthly_aggregates!)
@@ -351,7 +376,7 @@ export const spendFromEnvelope = async (args: {
   envelopeId: number;
   subcategoryId: number; // WYDATEK
   amount: number;
-  date: string;          // 'YYYY-MM-DD'
+  date: string; // 'YYYY-MM-DD'
   description?: string;
 }): Promise<number> => {
   const { envelopeId, subcategoryId, amount, date, description } = args;
@@ -364,11 +389,11 @@ export const spendFromEnvelope = async (args: {
   await db.execAsync('BEGIN IMMEDIATE');
   try {
     // 0) Strażniki + dane koperty
-    const env = await db.getFirstAsync(
+    const env = (await db.getFirstAsync(
       `SELECT name, COALESCE(saldo,0) AS saldo, finished, closed
          FROM envelopes WHERE id = ?`,
       [envelopeId]
-    ) as { name?: string; saldo: number; finished?: string | null; closed?: string | null } | null;
+    )) as { name?: string; saldo: number; finished?: string | null; closed?: string | null } | null;
 
     if (!env) throw new Error('Koperta nie istnieje.');
     if (env.finished != null || env.closed != null) {
@@ -391,17 +416,14 @@ export const spendFromEnvelope = async (args: {
     const purchaseId = ins.lastInsertRowId as number;
 
     // 2) saldo -= amount
-    await db.runAsync(
-      `UPDATE envelopes SET saldo = COALESCE(saldo,0) - ? WHERE id = ?`,
-      [amount, envelopeId]
-    );
+    await db.runAsync(`UPDATE envelopes SET saldo = COALESCE(saldo,0) - ? WHERE id = ?`, [amount, envelopeId]);
 
     // 3) RESZTA = saldoBefore - amount (może być 0)
     let rest = saldoBefore - amount;
 
     if (rest > 0) {
       // 3a) sprawdź miesięczny depozyt do tej koperty
-      const monthlyDeposit = await db.getFirstAsync(
+      const monthlyDeposit = (await db.getFirstAsync(
         `SELECT id, amount
            FROM entries
           WHERE depositEnvelopeId = ?
@@ -409,11 +431,11 @@ export const spendFromEnvelope = async (args: {
             AND substr(date,1,7) = ?
           LIMIT 1`,
         [envelopeId, ym]
-      ) as { id: number; amount: number } | undefined;
+      )) as { id: number; amount: number } | undefined;
 
       const { year, month } = yymmFromISO(date);
       const posDeposit = await getPositiveForSubcategory(ENVELOPE_FUND_SUBCAT_ID); // zwykle 0 = wydatek
-      const posIncome  = await getPositiveForSubcategory(OTHER_INCOME_SUBCAT_ID);  // 1 = dochód
+      const posIncome = await getPositiveForSubcategory(OTHER_INCOME_SUBCAT_ID); // 1 = dochód
 
       // krok a/c – redukcja depozytu
       if (monthlyDeposit) {
@@ -423,10 +445,11 @@ export const spendFromEnvelope = async (args: {
           const autoDesc = `Zasilenie koperty #${envelopeId} ${env.name ?? ''}`;
 
           if (newAmt > 0) {
-            await db.runAsync(
-              `UPDATE entries SET amount = ?, description = ? WHERE id = ?`,
-              [newAmt, autoDesc, monthlyDeposit.id]
-            );
+            await db.runAsync(`UPDATE entries SET amount = ?, description = ? WHERE id = ?`, [
+              newAmt,
+              autoDesc,
+              monthlyDeposit.id,
+            ]);
           } else {
             await db.runAsync(`DELETE FROM entries WHERE id = ?`, [monthlyDeposit.id]);
           }
@@ -437,10 +460,7 @@ export const spendFromEnvelope = async (args: {
           await upsertMonthlyAggregates(year, month, incDeltaDep, expDeltaDep);
 
           // saldo koperty też schodzi o "reduce"
-          await db.runAsync(
-            `UPDATE envelopes SET saldo = COALESCE(saldo,0) - ? WHERE id = ?`,
-            [reduce, envelopeId]
-          );
+          await db.runAsync(`UPDATE envelopes SET saldo = COALESCE(saldo,0) - ? WHERE id = ?`, [reduce, envelopeId]);
 
           rest -= reduce;
         }
@@ -463,10 +483,7 @@ export const spendFromEnvelope = async (args: {
         await upsertMonthlyAggregates(year, month, incDeltaInc, expDeltaInc);
 
         // saldo koperty schodzi o pozostałą resztę
-        await db.runAsync(
-          `UPDATE envelopes SET saldo = COALESCE(saldo,0) - ? WHERE id = ?`,
-          [rest, envelopeId]
-        );
+        await db.runAsync(`UPDATE envelopes SET saldo = COALESCE(saldo,0) - ? WHERE id = ?`, [rest, envelopeId]);
 
         rest = 0;
       }
@@ -482,10 +499,7 @@ export const spendFromEnvelope = async (args: {
     );
 
     // 5) sanity: ustaw saldo na 0 (eliminuje szumy zaokrągleń)
-    await db.runAsync(
-      `UPDATE envelopes SET saldo = 0 WHERE id = ?`,
-      [envelopeId]
-    );
+    await db.runAsync(`UPDATE envelopes SET saldo = 0 WHERE id = ?`, [envelopeId]);
 
     await db.execAsync('COMMIT');
     return purchaseId;

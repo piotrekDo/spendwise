@@ -40,7 +40,6 @@ export const Vault = () => {
     (async () => {
       try {
         const data = await getFullLast12Months(year, month1);
-        data.forEach(d => console.log(d));
         if (alive) setData(data);
       } finally {
       }
@@ -54,8 +53,8 @@ export const Vault = () => {
     const monthIdex = item.month1 - 1;
     const saldo = item.saldo;
     const saldoAd = item.saldoAfterDep;
-    const color = saldo > 0 ? '#43A047' : saldo < 0 ? '#E53935' : '#1E88E5';
-    const saldoAfterDepColor = saldoAd > saldo ? '#558d58ff' : '#ac4745ff';
+    const color = saldo > 0 ? colors.successStrong : saldo < 0 ? colors.dangerStrong : colors.neutralBlue;
+    const saldoAfterDepColor = saldoAd > saldo ? colors.success : '#ac4745ff';
     return (
       <View style={{ width: '100%', marginVertical: 15, justifyContent: 'center', paddingHorizontal: 20 }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingRight: 20 }}>
@@ -83,11 +82,11 @@ export const Vault = () => {
         >
           <View style={{}}>
             <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 5 }}>
-              <MaterialCommunityIcons name='bank-transfer-in' color='#558d58ff' size={16} />
+              <MaterialCommunityIcons name='bank-transfer-in' color={colors.success} size={16} />
               <Text style={{ color: colors.white }}>{item.incomeTotal.toFixed(2)}</Text>
             </View>
             <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 5 }}>
-              <MaterialCommunityIcons name='bank-transfer-out' color='#ac4745ff' size={16} />
+              <MaterialCommunityIcons name='bank-transfer-out' color={colors.danger} size={16} />
               <Text style={{ color: colors.white }}>{item.expenseTotal.toFixed(2)}</Text>
             </View>
           </View>
@@ -98,9 +97,9 @@ export const Vault = () => {
                   key={i}
                   style={{ flexDirection: 'row', gap: 5, justifyContent: 'flex-end', alignItems: 'center' }}
                 >
-                  <MaterialCommunityIcons name='arrow-top-right' color='#558d58ff' size={16} />
-                  <Text style={{ color: '#558d58ff' }}>{dep.value.toFixed(2)}</Text>
-                  <Text style={{ color: '#558d58ff' }}>{monthLabels[dep.from.month1 - 1]}</Text>
+                  <MaterialCommunityIcons name='arrow-top-right' color={colors.success} size={16} />
+                  <Text style={{ color: colors.success }}>{dep.value.toFixed(2)}</Text>
+                  <Text style={{ color: colors.success }}>{monthLabels[dep.from.month1 - 1]}</Text>
                 </View>
               );
             })}
@@ -111,9 +110,9 @@ export const Vault = () => {
                   key={i}
                   style={{ flexDirection: 'row', gap: 5, justifyContent: 'flex-end', alignItems: 'center' }}
                 >
-                  <MaterialCommunityIcons name='arrow-bottom-right' color='#ac4745ff' size={16} />
-                  <Text style={{ color: '#ac4745ff' }}>{dep.value.toFixed(2)}</Text>
-                  <Text style={{ color: '#ac4745ff' }}>{monthLabels[dep.to.month1 - 1]}</Text>
+                  <MaterialCommunityIcons name='arrow-bottom-right' color={colors.danger} size={16} />
+                  <Text style={{ color: colors.danger }}>{dep.value.toFixed(2)}</Text>
+                  <Text style={{ color: colors.danger }}>{monthLabels[dep.to.month1 - 1]}</Text>
                 </View>
               );
             })}
@@ -148,7 +147,7 @@ export const Vault = () => {
           const isTotal = d.month1 === -1;
           const monthIdex = d.month1 - 1;
           const saldo = d.incomeTotal - d.expenseTotal;
-          const color = saldo > 0 ? '#9EE493' : saldo < 0 ? '#FF7B7B' : '#1E88E5';
+          const color = saldo > 0 ? colors.success : saldo < 0 ? colors.danger : colors.neutralBlue;
           const isSponsor = d.saldoAfterDep < d.saldo;
           return (
             <View

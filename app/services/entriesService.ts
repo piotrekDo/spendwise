@@ -87,6 +87,16 @@ const upsertMonthlyAggregates = async (year: number, month: number, incDelta: nu
 
 // --- PUBLIC API ---
 
+export const getEntryById = async (id: number) : Promise<Entry> => {
+  const db = getDb();
+  const query = `
+  ${SELECT_ENTRY}
+  WHERE e.id = ?
+  `
+  const record = await db.getFirstAsync(query, [id]);
+  return mapEntry(record);
+}
+
 export const addEntry = async (subcategoryId: number, amount: number, description: string, date: string) => {
   const db = getDb();
   await db.execAsync('BEGIN');

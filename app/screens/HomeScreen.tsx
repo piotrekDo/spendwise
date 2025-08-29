@@ -41,6 +41,7 @@ export const HomeScreen = () => {
 
  return (
     <>
+
       <ScrollView
         style={{ flex: 1, backgroundColor: colors.background }}
         contentContainerStyle={{ padding: 10, paddingTop: Constants.statusBarHeight, gap: 10 }}
@@ -61,7 +62,6 @@ export const HomeScreen = () => {
             <Text style={styles.smallValue}>{saldoTotal.toFixed(2)} zł</Text>
           </View>
         </View>
-
         <View style={styles.largeMonthCard}>
           <Text style={styles.largeLabel}>
             {current.toLocaleDateString('pl-PL', { month: 'long', year: 'numeric' })}

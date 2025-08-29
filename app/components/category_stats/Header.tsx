@@ -36,7 +36,6 @@ export const Header = ({ cats, yearlyCategory, focusedBarIdxCat, isLoading, setF
   const [view, setView] = useState<ViewType>('chart');
 
   const onSetFocusedBarIdxHandler = (index: number) => {
-    console.log(focusedBarIdxCat, index)
     setFocusedBarIdxCat(focusedBarIdxCat === index ? null : index);
   }
 

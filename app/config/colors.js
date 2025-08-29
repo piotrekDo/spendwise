@@ -7,4 +7,9 @@ export default {
   primary: '#2ECC71',
   secondary: '#16A085',
   envelope: '#1565c0',
+  success: '#558d58ff',
+  successStrong: '#43A047',
+  danger: '#ac4745ff',
+  dangerStrong: '#E53935',
+  neutralBlue: '#1E88E5',
 };

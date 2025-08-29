@@ -6,6 +6,7 @@ import colors from '../../config/colors';
 import { RADIUS } from '../../config/constants';
 import routes from '../../navigation/routes';
 import { Envelope, getActiveEnvelopes } from '../../services/envelopesService';
+import { EnvelopeCard } from '../EnvelopeCard';
 
 interface Props {
   year: number;
@@ -42,50 +43,7 @@ export const Envelopes = ({ year, month1 }: Props) => {
         </Text>
       </View>
 
-      {activeEnvelopes.map(env => {
-        const saldo = Number(env.saldo ?? 0);
-        const hasTarget = typeof env.target === 'number' && isFinite(env.target) && env.target > 0;
-        const p = hasTarget ? saldo / (env.target as number) : 0;
-        const progress = Math.max(0, Math.min(1, p));
-
-        return (
-          <TouchableOpacity
-            key={env.id}
-            style={styles.envelopeRow}
-            activeOpacity={0.7}
-            onPress={() => navigation.navigate(routes.ENVELOPE_DETAILS as any, { envelopeId: env.id, year, month1 })}
-          >
-            <MaterialCommunityIcons
-              name='wallet-outline'
-              size={22}
-              color={env.color || colors.textPimary}
-              style={{ marginRight: 8 }}
-            />
-            <View style={{ flex: 1 }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                <Text style={styles.envelopeName} numberOfLines={1}>
-                  {env.name}
-                </Text>
-                <Text style={styles.envelopeSaldo}>
-                  {saldo.toFixed(2)}
-                  {hasTarget ? ` / ${Number(env.target).toFixed(2)}` : ''} zł
-                </Text>
-              </View>
-
-              {hasTarget && (
-                <View style={styles.progressTrack}>
-                  <View
-                    style={[
-                      styles.progressFill,
-                      { width: `${progress * 100}%`, backgroundColor: env.color || '#4CAF50' },
-                    ]}
-                  />
-                </View>
-              )}
-            </View>
-          </TouchableOpacity>
-        );
-      })}
+      {activeEnvelopes.map((env) => <EnvelopeCard key={env.id} env={env} year={year} month1={month1}/>)}
     </View>
   );
 };

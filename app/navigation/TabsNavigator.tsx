@@ -7,6 +7,7 @@ import routes from './routes';
 import { SQLiteDebug } from '../screens/SqLiteDebug';
 import AccountNavigator from './AccountNavigator';
 import { HomeScreen } from '../screens/HomeScreen';
+import { EnvelopesScreen } from '../screens/EnvelopesScreen';
 
 const Tab = createBottomTabNavigator();
 
@@ -20,6 +21,14 @@ export const TabsNavigator = () => {
           options={{
             headerShown: false,
             tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name='finance' color={color} size={size} />,
+          }}
+        />
+        <Tab.Screen
+          name={routes.ENVELOPES}
+          component={EnvelopesScreen}
+          options={{
+            headerShown: false,
+            tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name='email' color={color} size={size} />,
           }}
         />
         <Tab.Screen

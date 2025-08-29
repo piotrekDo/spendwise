@@ -17,6 +17,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import colors from '../../config/colors';
 import { getActiveEnvelopes, Envelope, addEnvelope, depositToEnvelope } from '../../services/envelopesService';
 import routes from '../../navigation/routes';
+import { EnvelopeCard } from '../../components/EnvelopeCard';
 
 type RouteParams = { month1?: number; year: number };
 
@@ -194,56 +195,7 @@ export const EnvelopesHome = () => {
             <Text style={styles.info}>Brak aktywnych kopert</Text>
           ) : (
             <ScrollView style={styles.scroll} keyboardShouldPersistTaps="handled">
-              {envelopes.map(env => {
-                const saldo = Number(env.saldo ?? 0);
-                const hasTarget = typeof env.target === 'number' && isFinite(env.target) && env.target > 0;
-                const p = hasTarget ? saldo / (env.target as number) : 0;
-                const progress = Math.max(0, Math.min(1, p)); // w liście klamrujemy do 100%
-
-                return (
-                  <TouchableOpacity
-                    key={env.id}
-                    style={styles.envelopeRow}
-                    activeOpacity={0.7}
-                    onPress={() =>
-                      navigation.navigate(routes.ENVELOPE_DETAILS as any, { envelopeId: env.id, year, month1 })
-                    }
-                    onLongPress={() =>
-                      navigation.navigate(routes.ENVELOPE_EDIT as any, {
-                        envelopeId: env.id,
-                        initialName: env.name,
-                        initialColor: env.color,
-                      })
-                    }
-                  >
-                    <MaterialCommunityIcons
-                      name="wallet-outline"
-                      size={22}
-                      color={env.color || colors.textPimary}
-                      style={{ marginRight: 8 }}
-                    />
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.envelopeName}>{env.name}</Text>
-                      <Text style={styles.envelopeSaldo}>
-                        Saldo: {saldo.toFixed(2)}
-                        {hasTarget ? ` / ${Number(env.target).toFixed(2)}` : ''} zł
-                      </Text>
-
-                      {/* Pasek napełnienia */}
-                      {hasTarget && (
-                        <View style={styles.progressTrack}>
-                          <View
-                            style={[
-                              styles.progressFill,
-                              { width: `${progress * 100}%`, backgroundColor: env.color || '#4CAF50' },
-                            ]}
-                          />
-                        </View>
-                      )}
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
+              {envelopes.map(env => <EnvelopeCard key={env.id} env={env} year={year} month1={month1!} />)}
             </ScrollView>
           )}
 
