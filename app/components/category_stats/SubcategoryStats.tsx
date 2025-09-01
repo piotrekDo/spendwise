@@ -4,13 +4,14 @@ import React, { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Pressable, ScrollView } from 'react-native-gesture-handler';
 import { BarChart } from 'react-native-gifted-charts';
-import { monthLabels } from '../../config/constants';
+import { getMonthDateRange, monthLabels } from '../../config/constants';
 import { SubcategoryMulti } from '../../services/statService';
 import { useNavigation } from '@react-navigation/native';
 import routes from '../../navigation/routes';
-import { getAllSubCatEntries } from '../../services/entriesService';
+import { getAllSubCatEntries, getSelectedSubCategorySpendings } from '../../services/entriesService';
 import { StackActions } from '@react-navigation/native';
 import { Moneyloader } from '../Moneyloader';
+import colors from '../../config/colors';
 interface Props {
   sub: SubcategoryMulti;
   sheetRef: React.RefObject<BottomSheetModal | null>;
@@ -48,18 +49,18 @@ export const SubcategoryStats = ({ sub, sheetRef, year, isLoading }: Props) => {
     setView(s => (s === 'chart' ? 'list' : 'chart'));
   };
 
-const handleOpenDetails = async () => {
-  const entries = await getAllSubCatEntries(sub.subcategoryId);
-  requestAnimationFrame(() => {
-    navigation.navigate(routes.CATEGORY_DETAILS, { 
-      data: entries,
-      displayName: sub.name,
-      displayIcon: sub.icon,
-      displayColor: sub.color,
-      fullScreen: true,
+  const handleOpenDetails = async () => {
+    const entries = await getAllSubCatEntries(sub.subcategoryId);
+    requestAnimationFrame(() => {
+      navigation.navigate(routes.CATEGORY_DETAILS, {
+        data: entries,
+        displayName: sub.name,
+        displayIcon: sub.icon,
+        displayColor: sub.color,
+        fullScreen: true,
+      });
     });
-  });
-};
+  };
 
   const total = sub.years[0].sumsByMonth.reduce((a, v) => a + v, 0);
   const empty = false;
@@ -69,14 +70,26 @@ const handleOpenDetails = async () => {
     return sums.map((value, i) => ({
       value,
       label: monthLabels[i],
+      month: i,
     }));
   };
 
   const fiveYearsSums = sub?.years.map(y => y.sumsByMonth);
 
   if (isLoading) {
-    return null
+    return null;
   }
+
+  const handleOpenEntryDetailsModal = async (month0: number) => {
+    const { start, end } = getMonthDateRange(year, month0);
+    const entries = await getSelectedSubCategorySpendings(sub.subcategoryId, start, end);
+    navigation.navigate(routes.CATEGORY_DETAILS, {
+      data: entries,
+      displayName: sub?.name,
+      displayIcon: sub?.icon,
+      displayColor: sub?.color,
+    });
+  };
 
   return (
     <View style={styles.subRow}>
@@ -94,17 +107,17 @@ const handleOpenDetails = async () => {
           </View>
         </Pressable>
 
-          <View style={styles.listButton}>
-            <Text style={styles.subName}>{total.toFixed(2)} zł</Text>
-        <Pressable onPress={handleOpenDetails}>
+        <View style={styles.listButton}>
+          <Text style={styles.subName}>{total.toFixed(2)} zł</Text>
+          <Pressable onPress={handleOpenDetails}>
             <MaterialCommunityIcons
               name={'format-list-bulleted'}
               size={25}
               color={sub.color}
               style={{ marginLeft: 10 }}
             />
-        </Pressable>
-          </View>
+          </Pressable>
+        </View>
       </View>
       <View style={{ justifyContent: 'center', alignItems: 'center', height: 230 }}>
         {empty ? (
@@ -131,6 +144,9 @@ const handleOpenDetails = async () => {
                 yAxisTextNumberOfLines={1}
                 yAxisColor='transparent'
                 xAxisColor='transparent'
+                onLongPress={(item: any) => {
+                  handleOpenEntryDetailsModal(item.month);
+                }}
                 renderTooltip={(item: any, index: number) => {
                   return (
                     <View style={styles.tooltip}>
@@ -174,6 +190,17 @@ const handleOpenDetails = async () => {
           </View>
         )}
       </View>
+      {/* <View style={{ width: '100%' }}>
+        <View style={styles.summaryRow}>
+          <Text style={styles.summaryText}>Suma: {total ? total.toFixed(2) : 0} zł</Text>
+          <Text style={styles.summaryText}>Śr.:  zł</Text>
+        </View>
+        <View style={styles.summaryRow}>
+          {true ? <Text style={styles.summaryText}>Max: zł)</Text> : <Text style={styles.summaryText}>Max: n/d</Text>}
+
+          {1 >= 0 ? <Text style={styles.summaryText}>Min:</Text> : <Text style={styles.summaryText}>Min: n/d</Text>}
+        </View>
+      </View> */}
     </View>
   );
 };
@@ -218,4 +245,6 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
     paddingHorizontal: 20,
   },
+  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
+  summaryText: { color: colors.white, opacity: 0.85, fontSize: 12 },
 });

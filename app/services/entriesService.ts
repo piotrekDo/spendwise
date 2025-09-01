@@ -151,6 +151,18 @@ export const getAllSubCatEntries = async (subcatId: number) => {
   return rows.map((r: any) => mapEntry(r));
 }
 
+export const getSelectedSubCategorySpendings = async (subcategoryId: number, startDate: string, endDate: string) => {
+  const db = getDb();
+  const query = `
+    ${SELECT_ENTRY}
+    WHERE s.id = ? AND e.date BETWEEN ? AND ?
+    ORDER BY e.date DESC, e.id DESC
+  `;
+
+  const rows = await db.getAllAsync(query, [subcategoryId, startDate, endDate]);
+  return rows.map((r: any) => mapEntry(r));
+};
+
 export const getSelectedCategorySpendings = async (categoryId: number, startDate: string, endDate: string) => {
   const db = getDb();
   const query = `

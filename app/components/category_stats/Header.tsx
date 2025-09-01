@@ -7,8 +7,11 @@ import colors from '../../config/colors';
 import { CategoryWithSubMulti, CategoryWithSubYearly } from '../../services/statService';
 import { Pressable, ScrollView } from 'react-native-gesture-handler';
 import { fullMonths, viewIcons, ViewType } from './SubcategoryStats';
-import { monthLabels } from '../../config/constants';
+import { getMonthDateRange, monthLabels } from '../../config/constants';
 import useMonthCategoryStats from '../../state/useMonthCategoryStats';
+import { getSelectedCategorySpendings } from '../../services/entriesService';
+import routes from '../../navigation/routes';
+import { useNavigation } from '@react-navigation/native';
 
 interface Props {
   cats: CatLite[];
@@ -19,6 +22,8 @@ interface Props {
 }
 
 export const Header = ({ cats, yearlyCategory, focusedBarIdxCat, isLoading, setFocusedBarIdxCat }: Props) => {
+    const navigation = useNavigation<any>();
+  
   const {
     selectedCategory,
     year,
@@ -37,7 +42,7 @@ export const Header = ({ cats, yearlyCategory, focusedBarIdxCat, isLoading, setF
 
   const onSetFocusedBarIdxHandler = (index: number) => {
     setFocusedBarIdxCat(focusedBarIdxCat === index ? null : index);
-  }
+  };
 
   const isCatEmpty = useMemo(() => !barData || barData.every(b => (b.value ?? 0) === 0), [barData]);
 
@@ -71,6 +76,17 @@ export const Header = ({ cats, yearlyCategory, focusedBarIdxCat, isLoading, setF
   const handleHangeView = () => {
     setView(s => (s === 'chart' ? 'list' : 'chart'));
   };
+
+    const handleOpenEntryDetailsModal = async (month0: number) => {
+      const { start, end } = getMonthDateRange(year, month0);
+      const entries = await getSelectedCategorySpendings(selectedCategory?.id!, start, end);
+      navigation.navigate(routes.CATEGORY_DETAILS, {
+        data: entries,
+        displayName: selectedCategory?.name,
+        displayIcon: selectedCategory?.icon,
+        displayColor: selectedCategory?.color,
+      });
+    };
 
   const fiveYearsSums = yearlyCategory?.years.map(y => y.sumsByMonth);
   return (
@@ -121,6 +137,9 @@ export const Header = ({ cats, yearlyCategory, focusedBarIdxCat, isLoading, setF
                 <BarChart
                   data={barData}
                   onPress={(index: any) => onSetFocusedBarIdxHandler(index.month)}
+                  onLongPress={(item: any) => {
+                    handleOpenEntryDetailsModal(item.month);
+                  }}
                   barWidth={16}
                   spacing={16}
                   noOfSections={4}
@@ -199,7 +218,6 @@ export const Header = ({ cats, yearlyCategory, focusedBarIdxCat, isLoading, setF
             </View>
           </View>
 
-          {/* Pie bez interakcji */}
           <Text style={styles.subHeaderTitle}>
             Podział subkategorii {pieSourceMonth == null ? '(rok)' : `(miesiąc: ${monthLabels[pieSourceMonth]})`}
           </Text>
