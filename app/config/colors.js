@@ -2,6 +2,8 @@ export default {
   black: '#000',
   white: '#fff',
   background: '#181A20',
+  background2: '#282e42ff',
+  background3: '#343066ff',
   textPimary: 'rgba(255, 255, 255, 0.7)',
   textSecondary: '#9CA1B2',
   primary: '#2ECC71',

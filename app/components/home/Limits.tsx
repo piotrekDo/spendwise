@@ -80,7 +80,7 @@ export const Limits = ({ year, month0 }: Props) => {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#1F2128',
+    backgroundColor: colors.background2,
     borderRadius: RADIUS,
     padding: 12,
     borderWidth: StyleSheet.hairlineWidth,
@@ -97,7 +97,7 @@ const styles = StyleSheet.create({
   limitAmounts: { color: colors.white, opacity: 0.7, fontSize: 12, marginTop: 2 },
   limitRight: { position: 'absolute', right: 0, top: 0 },
   limitPercent: { color: colors.white, fontWeight: '700' },
-  limitTrack: { marginTop: 6, backgroundColor: '#2E2F36', borderRadius: 8, height: 10, overflow: 'hidden' },
+  limitTrack: { marginTop: 6, backgroundColor: '#63646bff', borderRadius: 8, height: 10, overflow: 'hidden' },
   limitFill: { height: '100%', borderRadius: 8 },
   limitFooter: { marginTop: 4, flexDirection: 'row', justifyContent: 'space-between' },
   limitLeftText: { color: colors.white, opacity: 0.8, fontSize: 11 },

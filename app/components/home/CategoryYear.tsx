@@ -151,7 +151,7 @@ export const CategoryYear = ({ year }: Props) => {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#1F2128',
+    backgroundColor: colors.background2,
     borderRadius: RADIUS,
     padding: 12,
     paddingTop: 0,

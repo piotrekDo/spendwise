@@ -2,14 +2,14 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import Constants from 'expo-constants';
 import React, { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { CategoryYear } from '../components/home/CategoryYear';
 import { Charts } from '../components/home/Charts';
 import { Envelopes } from '../components/home/Envelopes';
 import { Limits } from '../components/home/Limits';
 import colors from '../config/colors';
-import { debugLog, RADIUS } from '../config/constants';
-import { getBalancesForMonth } from '../services/balancesService';
-import { CategoryYear } from '../components/home/CategoryYear';
+import { RADIUS } from '../config/constants';
 import routes from '../navigation/routes';
+import { getBalancesForMonth } from '../services/balancesService';
 
 export const HomeScreen = () => {
   const navigation = useNavigation<any>();
@@ -39,9 +39,8 @@ export const HomeScreen = () => {
     }, [year, month1])
   );
 
- return (
+  return (
     <>
-
       <ScrollView
         style={{ flex: 1, backgroundColor: colors.background }}
         contentContainerStyle={{ padding: 10, paddingTop: Constants.statusBarHeight, gap: 10 }}
@@ -49,7 +48,7 @@ export const HomeScreen = () => {
         <View style={styles.headerBar}>
           <Pressable
             onPress={() => {
-              navigation.navigate(routes.MODAL_VAULT, {year, month1});
+              navigation.navigate(routes.MODAL_VAULT, { year, month1 });
             }}
             style={[styles.smallCard, styles.vaultSmallCard]}
           >

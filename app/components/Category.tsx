@@ -92,7 +92,8 @@ export const Category = ({ item, expanded, toggleExpand, openAddModal, openCateg
 
 const styles = StyleSheet.create({
   cardContainer: {
-    backgroundColor: '#22242B',
+    elevation: 10,
+    backgroundColor: colors.background2,
     borderRadius: 12,
     paddingHorizontal: 12,
     marginBottom: 6,
@@ -181,7 +182,7 @@ const styles = StyleSheet.create({
   },
 
   subList: {
-    backgroundColor: '#1F2128',
+    backgroundColor: '#343066ff',
     paddingHorizontal: 15,
     paddingVertical: 6,
     borderRadius: 10,

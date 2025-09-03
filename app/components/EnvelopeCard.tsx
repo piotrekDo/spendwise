@@ -48,7 +48,7 @@ export const EnvelopeCard = ({ env, year, month1 }: Props) => {
   return (
     <TouchableOpacity
       key={env.id}
-      style={{ marginVertical: 5 }}
+      style={[styles.envelopeCard, {backgroundColor: env.finished ? '' : ''}]}
       activeOpacity={0.7}
       onPress={() => navigation.navigate(routes.ENVELOPE_DETAILS as any, { envelopeId: env.id, year, month1 })}
       onLongPress={() => {
@@ -104,6 +104,11 @@ export const EnvelopeCard = ({ env, year, month1 }: Props) => {
 };
 
 const styles = StyleSheet.create({
+  envelopeCard: {
+    marginVertical: 5,
+    padding: 5,
+    borderRadius: 10,
+  },
   flexRow: {
     flexDirection: 'row',
     width: '100%',

@@ -1,20 +1,25 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, Modal, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import Animated from 'react-native-reanimated';
-import { Entry, deleteEntry } from '../../services/entriesService';
-import colors from '../../config/colors';
-import Swipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 import {
   BottomSheetBackdrop,
-  BottomSheetFlatList,
   BottomSheetModal,
-  BottomSheetSectionList,
+  BottomSheetSectionList
 } from '@gorhom/bottom-sheet';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import Swipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
+import Animated from 'react-native-reanimated';
+import colors from '../../config/colors';
 import { monthColors, monthIcons, MONTHS_PL } from '../../config/constants';
+import { deleteEntry, Entry } from '../../services/entriesService';
 
-type RouteParams = { data: Entry[]; displayName: string; displayIcon: string; displayColor: string, fullScreen: boolean };
+type RouteParams = {
+  data: Entry[];
+  displayName: string;
+  displayIcon: string;
+  displayColor: string;
+  fullScreen: boolean;
+};
 
 export const CategoryDetailsModal = () => {
   const navigation = useNavigation<any>();
@@ -78,8 +83,8 @@ export const CategoryDetailsModal = () => {
       overshootRight={false}
       rightThreshold={20} // było domyślne ~64 – ustaw np. 16–24
       friction={1} // 0.8–1.2 jest zwykle „miękko”
-          activeOffsetX={[-10, 10]}   // trzeba ruszyć w bok co najmniej 10 px
-    activeOffsetY={[-50, 50]}   // pozwala na drobne „drżenie” w pionie (max 10 px)
+      activeOffsetX={[-10, 10]} // trzeba ruszyć w bok co najmniej 10 px
+      activeOffsetY={[-50, 50]} // pozwala na drobne „drżenie” w pionie (max 10 px)
     >
       <Animated.View
         style={[styles.entryItem, { backgroundColor: !item.financedEnvelopeId ? '#2A2C33' : colors.envelope }]}

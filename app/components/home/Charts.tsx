@@ -92,7 +92,7 @@ export const Charts = ({ year, month1 }: Props) => {
           bottom: (item?.value ?? 0) + 26,
           paddingVertical: 6,
           paddingHorizontal: 10,
-          backgroundColor: '#1f2229',
+          backgroundColor: colors.background2,
           borderRadius: 8,
           borderWidth: StyleSheet.hairlineWidth,
           borderColor: '#2e2f36',
@@ -194,7 +194,7 @@ export const Charts = ({ year, month1 }: Props) => {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#1F2128',
+    backgroundColor: colors.background2,
     borderRadius: RADIUS,
     padding: 12,
     borderWidth: StyleSheet.hairlineWidth,

@@ -16,7 +16,7 @@ import {
 import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 import colors from '../../config/colors';
 import { deleteEntry } from '../../services/entriesService';
-import { depositToEnvelope, getEnvelopeById, getEnvelopeDeposits } from '../../services/envelopesService';
+import { depositToEnvelope, Envelope, getEnvelopeById, getEnvelopeDeposits } from '../../services/envelopesService';
 
 type RouteParams = { envelopeId: number; year: number; month1: number };
 
@@ -24,42 +24,36 @@ export const EnvelopeDetails = () => {
   const route = useRoute();
   const navigation = useNavigation<any>();
   const { envelopeId, year, month1 } = route.params as RouteParams;
-
-  const [envName, setEnvName] = useState('');
-  const [envColor, setEnvColor] = useState('#4F7CAC');
-  const [saldo, setSaldo] = useState(0);
-  const [target, setTarget] = useState<number | null>(null);
-
+  const [envelope, setEnvelope] = useState<Envelope | undefined>(undefined);
   const [entries, setEntries] = useState<Array<{ id: number; date: string; amount: number; note: string }>>([]);
   const [amount, setAmount] = useState('');
 
+  const { id, name: envName, color: envColor, saldo, target, finished, closed, iconId, entryId } = envelope ?? {};
+  const envSaldo = saldo ?? 0;
+  const isInactive = finished || closed;
+
   const loadAll = async () => {
-    const env = await getEnvelopeById(envelopeId);
+    const env: Envelope | null = await getEnvelopeById(envelopeId);
     if (env) {
-      setEnvName(env.name);
-      setEnvColor(env.color ?? '#4F7CAC');
-      setSaldo(Number(env.saldo ?? 0));
-      setTarget(env.target != null ? Number(env.target) : null);
+      setEnvelope(env);
+      const list = await getEnvelopeDeposits(envelopeId);
+      setEntries(list);
     }
-    const list = await getEnvelopeDeposits(envelopeId);
-    setEntries(list);
   };
 
   useEffect(() => {
     loadAll();
   }, [envelopeId, year, month1]);
 
-  // odśwież po powrocie na ekran
   useFocusEffect(
     useCallback(() => {
       loadAll();
     }, [])
   );
 
-  // REALNY progres (bez klampowania do 1.0)
   const rawProgress = useMemo(() => {
     if (target == null || !isFinite(target) || target <= 0) return 0;
-    const p = saldo / target;
+    const p = envSaldo / target;
     return Number.isFinite(p) ? Math.max(0, p) : 0;
   }, [saldo, target]);
 
@@ -97,7 +91,6 @@ export const EnvelopeDetails = () => {
 
   return (
     <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      {/* Własny pasek nawigacji */}
       <View style={styles.topbar}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.iconBtn} accessibilityRole='button'>
           <MaterialCommunityIcons name='arrow-left' size={22} color={colors.textPimary} />
@@ -110,25 +103,29 @@ export const EnvelopeDetails = () => {
         </TouchableOpacity>
       </View>
 
-      {/* Karta z zawartością */}
       <View style={styles.card}>
-        {/* Header wewnątrz karty */}
         <View style={styles.headerRow}>
           <View style={[styles.iconBadge, { backgroundColor: envColor + '33', borderColor: envColor }]}>
             <MaterialCommunityIcons name='wallet-outline' size={22} color={envColor} />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.title}>{envName}</Text>
-            <Text style={styles.saldo}>
-              Saldo: {saldo.toFixed(2)}
-              {target != null ? ` / ${target.toFixed(2)}` : ''} zł
-            </Text>
+            <>
+              {!isInactive && (
+                <Text style={styles.saldo}>
+                  Saldo: {envSaldo.toFixed(2)}
+                  {target != null ? ` / ${target.toFixed(2)}` : ''} zł
+                </Text>
+              )}
+              {isInactive && finished && (
+                <Text style={[styles.saldo, { color: colors.success }]}>{`Ukończona ${finished}`}</Text>
+              )}
+            </>
           </View>
-          {target != null && <Text style={styles.percent}>{percentLabel}%</Text>}
+          {!isInactive && target != null && <Text style={styles.percent}>{percentLabel}%</Text>}
         </View>
 
-        {/* Pasek napełnienia (z nadmiarem) */}
-        {target != null && (
+        {!isInactive && target != null && (
           <View style={styles.progressWrap}>
             <View style={styles.progressTrack}>
               {/* do 100% */}
@@ -142,23 +139,23 @@ export const EnvelopeDetails = () => {
           </View>
         )}
 
-        {/* Dodawanie wpłaty */}
-        <View style={styles.addRow}>
-          <TextInput
-            style={[styles.input, { flex: 1 }]}
-            placeholder='Kwota'
-            placeholderTextColor='#8aa'
-            keyboardType='decimal-pad'
-            value={amount}
-            onChangeText={setAmount}
-          />
-          <TouchableOpacity style={[styles.addBtn, { backgroundColor: envColor }]} onPress={addDeposit}>
-            <MaterialCommunityIcons name='plus' size={18} color='#fff' />
-            <Text style={styles.addBtnText}>Dodaj</Text>
-          </TouchableOpacity>
-        </View>
+        {!isInactive && (
+          <View style={styles.addRow}>
+            <TextInput
+              style={[styles.input, { flex: 1 }]}
+              placeholder='Kwota'
+              placeholderTextColor='#8aa'
+              keyboardType='decimal-pad'
+              value={amount}
+              onChangeText={setAmount}
+            />
+            <TouchableOpacity style={[styles.addBtn, { backgroundColor: envColor }]} onPress={addDeposit}>
+              <MaterialCommunityIcons name='plus' size={18} color='#fff' />
+              <Text style={styles.addBtnText}>Dodaj</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
-        {/* Lista wpłat */}
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 8 }}>
           {entries.map(e => (
             <ReanimatedSwipeable key={e.id} renderRightActions={() => renderRight(e.id)}>

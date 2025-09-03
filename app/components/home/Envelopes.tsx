@@ -1,7 +1,7 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import React, { useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import colors from '../../config/colors';
 import { RADIUS } from '../../config/constants';
 import routes from '../../navigation/routes';
@@ -34,14 +34,18 @@ export const Envelopes = ({ year, month1 }: Props) => {
     }, [year, month1])
   );
 
+  const handleNavigateToEnvelopes = () => {
+    navigation.navigate(routes.ENVELOPES)
+  }
+
   return (
     <View style={styles.card}>
-      <View style={styles.cardHeader}>
+      <Pressable style={styles.cardHeader} onPress={handleNavigateToEnvelopes}>
         <Text style={styles.cardTitle}>Aktywne koperty</Text>
         <Text style={styles.cardSubtitle}>
           {loadingEnvelopes ? 'Ładowanie…' : activeEnvelopes.length === 0 ? 'Brak aktywnych kopert' : ''}
         </Text>
-      </View>
+      </Pressable>
 
       {activeEnvelopes.map((env) => <EnvelopeCard key={env.id} env={env} year={year} month1={month1}/>)}
     </View>
@@ -50,7 +54,7 @@ export const Envelopes = ({ year, month1 }: Props) => {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#1F2128',
+    backgroundColor: colors.background2,
     borderRadius: RADIUS,
     padding: 12,
     borderWidth: StyleSheet.hairlineWidth,
