@@ -1,43 +1,30 @@
-// screens/envelopes/EnvelopesHome.tsx
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import React, { useCallback, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
   KeyboardAvoidingView,
   Platform,
   Pressable,
-  TextInput,
-  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import colors from '../../config/colors';
-import { getActiveEnvelopes, Envelope, addEnvelope, depositToEnvelope } from '../../services/envelopesService';
-import routes from '../../navigation/routes';
 import { EnvelopeCard } from '../../components/EnvelopeCard';
+import { AddEnvelopeForm } from '../../components/envelope/AddEnvelopeForm';
+import colors from '../../config/colors';
+import { Envelope, getActiveEnvelopes } from '../../services/envelopesService';
 
 type RouteParams = { month1?: number; year: number };
-
-const COLOR_PRESETS = ['#4F7CAC', '#7C4DFF', '#2E7D32', '#1565C0', '#B28704', '#C62828', '#8E24AA', '#00897B'];
 
 export const EnvelopesHome = () => {
   const navigation = useNavigation<any>();
   const route = useRoute();
   const { month1, year } = (route.params as RouteParams) || {};
-
   const [envelopes, setEnvelopes] = useState<Envelope[]>([]);
   const [loading, setLoading] = useState(true);
-
-  // UI stanu dodawania
   const [showAdd, setShowAdd] = useState(false);
-  const [newName, setNewName] = useState('');
-  const [newTarget, setNewTarget] = useState(''); // string -> parsujemy przy zapisie
-  const [initialDeposit, setInitialDeposit] = useState(''); // jw.
-  const [selectedColor, setSelectedColor] = useState(COLOR_PRESETS[0]);
-  const [saving, setSaving] = useState(false);
 
   const handleClose = () => navigation.goBack();
 
@@ -54,54 +41,7 @@ export const EnvelopesHome = () => {
     }, [])
   );
 
-  const resetForm = () => {
-    setNewName('');
-    setNewTarget('');
-    setInitialDeposit('');
-    setSelectedColor(COLOR_PRESETS[0]);
-  };
-
   const handleAddEnvelope = () => setShowAdd(s => !s);
-
-  const handleSaveEnvelope = async () => {
-    if (!newName.trim()) {
-      Alert.alert('Brak nazwy', 'Podaj nazwę koperty.');
-      return;
-    }
-    const targetNum = newTarget.trim() ? Number(newTarget.replace(',', '.')) : null;
-    const depositNum = initialDeposit.trim() ? Number(initialDeposit.replace(',', '.')) : 0;
-
-    if (Number.isNaN(targetNum as number)) {
-      Alert.alert('Błędna kwota', 'Cel (target) musi być liczbą.');
-      return;
-    }
-    if (Number.isNaN(depositNum)) {
-      Alert.alert('Błędna kwota', 'Kwota startowa musi być liczbą.');
-      return;
-    }
-    if (depositNum < 0) {
-      Alert.alert('Błędna kwota', 'Kwota startowa nie może być ujemna.');
-      return;
-    }
-
-    try {
-      setSaving(true);
-      const envelopeId = await addEnvelope(newName.trim(), selectedColor, targetNum ?? null);
-
-      if (depositNum > 0) {
-        // opis wpłaty generuje się automatycznie w serwisie
-        await depositToEnvelope(envelopeId, depositNum, { year, month1 });
-      }
-
-      await loadActiveEnvelopes();
-      resetForm();
-      setShowAdd(false);
-    } catch (e: any) {
-      Alert.alert('Błąd', e?.message || 'Nie udało się dodać koperty.');
-    } finally {
-      setSaving(false);
-    }
-  };
 
   return (
     <View style={styles.root}>
@@ -115,92 +55,29 @@ export const EnvelopesHome = () => {
           <View style={styles.header}>
             <Text style={styles.headerText}>Aktywne koperty</Text>
             <TouchableOpacity style={styles.addButton} onPress={handleAddEnvelope}>
-              <MaterialCommunityIcons name="plus-circle-outline" size={26} color={colors.primary} />
+              <MaterialCommunityIcons name='plus-circle-outline' size={26} color={colors.primary} />
               <Text style={styles.addButtonText}>{showAdd ? 'Ukryj' : 'Dodaj'}</Text>
             </TouchableOpacity>
           </View>
 
-          {/* Formularz dodawania */}
           {showAdd && (
-            <View style={styles.formCard}>
-              <Text style={styles.formLabel}>Nazwa *</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="np. Telewizor"
-                placeholderTextColor="#8aa"
-                value={newName}
-                onChangeText={setNewName}
-              />
-
-              <Text style={styles.formLabel}>Cel (PLN)</Text>
-              <TextInput
-                style={styles.input}
-                keyboardType="decimal-pad"
-                placeholder="np. 5000"
-                placeholderTextColor="#8aa"
-                value={newTarget}
-                onChangeText={setNewTarget}
-              />
-
-              <Text style={styles.formLabel}>Kwota startowa (PLN)</Text>
-              <TextInput
-                style={styles.input}
-                keyboardType="decimal-pad"
-                placeholder="np. 300"
-                placeholderTextColor="#8aa"
-                value={initialDeposit}
-                onChangeText={setInitialDeposit}
-              />
-              <Text style={styles.hint}>Opis wpłaty generuje się automatycznie.</Text>
-
-              <Text style={styles.formLabel}>Kolor</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.colorsRow}>
-                {COLOR_PRESETS.map(c => (
-                  <TouchableOpacity
-                    key={c}
-                    onPress={() => setSelectedColor(c)}
-                    style={[
-                      styles.colorDot,
-                      { backgroundColor: c, borderColor: selectedColor === c ? '#fff' : 'transparent' },
-                    ]}
-                  />
-                ))}
-              </ScrollView>
-
-              <View style={styles.formActions}>
-                <TouchableOpacity
-                  style={[styles.btn, styles.btnCancel]}
-                  onPress={() => {
-                    resetForm();
-                    setShowAdd(false);
-                  }}
-                >
-                  <Text style={styles.btnText}>Anuluj</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  disabled={saving}
-                  style={[styles.btn, styles.btnPrimary, saving && { opacity: 0.6 }]}
-                  onPress={handleSaveEnvelope}
-                >
-                  <Text style={styles.btnText}>{saving ? 'Zapisywanie...' : 'Zapisz'}</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
+            <AddEnvelopeForm setShowAdd={setShowAdd} setEnvelopes={setEnvelopes} year={year} month1={month1!} />
           )}
 
-          {/* Lista kopert */}
           {loading ? (
             <Text style={styles.info}>Ładowanie...</Text>
           ) : envelopes.length === 0 ? (
             <Text style={styles.info}>Brak aktywnych kopert</Text>
           ) : (
-            <ScrollView style={styles.scroll} keyboardShouldPersistTaps="handled">
-              {envelopes.map(env => <EnvelopeCard key={env.id} env={env} year={year} month1={month1!} />)}
+            <ScrollView style={styles.scroll} keyboardShouldPersistTaps='handled'>
+              {envelopes.map(env => (
+                <EnvelopeCard key={env.id} env={env} year={year} month1={month1!} />
+              ))}
             </ScrollView>
           )}
 
           <View style={styles.actions}>
-            <TouchableOpacity onPress={handleClose} accessibilityRole="button">
+            <TouchableOpacity onPress={handleClose} accessibilityRole='button'>
               <Text style={styles.cancel}>✖</Text>
             </TouchableOpacity>
           </View>
